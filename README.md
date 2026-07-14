@@ -6,6 +6,8 @@ Import token accounts → pool → one local OpenAI-compatible API for CLI / IDE
 
 Codex is the first client; more providers/clients can land later without renaming the product.
 
+**Author:** [Phipari](https://github.com/phi1235)
+
 ---
 
 ## Flow
