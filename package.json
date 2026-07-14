@@ -1,24 +1,49 @@
 {
-  "name": "quay",
+  "name": "@phi1235/quay",
   "version": "0.1.0",
-  "description": "Quay — local multi-account AI gateway (token pool + OpenAI-compatible API)",
-  "main": "index.js",
+  "description": "Quay — local multi-account AI gateway (Codex + Grok token pool, OpenAI-compatible API)",
+  "main": "src/cli.js",
+  "type": "module",
+  "bin": {
+    "quay": "./src/cli.js"
+  },
+  "files": [
+    "src",
+    "public",
+    "README.md",
+    "package.json"
+  ],
   "scripts": {
     "start": "node src/cli.js start",
     "ui": "node src/cli.js start",
     "import": "node src/cli.js import",
-    "list": "node src/cli.js list"
+    "list": "node src/cli.js list",
+    "prepublishOnly": "node --check src/cli.js"
   },
-  "keywords": ["quay", "gateway", "openai", "codex", "token-pool"],
+  "keywords": [
+    "quay",
+    "gateway",
+    "openai",
+    "codex",
+    "grok",
+    "token-pool",
+    "local-proxy"
+  ],
   "author": "Phipari <https://github.com/phi1235>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/phi1235/Quay.git"
+    "url": "git+https://github.com/phi1235/Quay.git"
   },
+  "bugs": {
+    "url": "https://github.com/phi1235/Quay/issues"
+  },
+  "homepage": "https://github.com/phi1235/Quay#readme",
   "license": "ISC",
-  "type": "module",
-  "bin": {
-    "quay": "./src/cli.js"
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "cors": "^2.8.6",

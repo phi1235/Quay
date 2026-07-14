@@ -25,8 +25,14 @@ import {
 import { startGateway } from './gateway.js';
 import { applyCodexConfig, printEnvExport } from './apply-codex.js';
 import { applyGrokConfig, printGrokEnvExport } from './apply-grok.js';
+import {
+  packageMeta,
+  checkForUpdate,
+  printUpdateNotice,
+} from './update-check.js';
 
 const [cmd, ...args] = process.argv.slice(2);
+const PKG = packageMeta();
 
 async function main() {
   switch (cmd) {
@@ -58,6 +64,11 @@ async function main() {
     case 'regen-key':
       console.log(regenerateLocalApiKey());
       return;
+    case 'version':
+    case '-v':
+    case '--version':
+      console.log(`${PKG.name || 'quay'} v${PKG.version || '?'}`);
+      return;
     case 'help':
     case undefined:
       return printHelp();
@@ -70,11 +81,12 @@ async function main() {
 
 function printHelp() {
   console.log(`
-Quay (quay) — local multi-account AI gateway
+Quay (quay) v${PKG.version || '?'} — local multi-account AI gateway
+Install: npm i -g ${PKG.name || '@phi1235/quay'}
 
 Usage:
   quay <command>
-  node src/cli.js <command>
+  npx ${PKG.name || '@phi1235/quay'} <command>
 
 Commands:
   import <file.json>       Import Codex/ChatGPT token JSON
@@ -89,6 +101,7 @@ Commands:
   apply-grok               Point Grok CLI at this gateway (~/.grok/config.toml)
   env                      Print env exports (Codex + Grok)
   regen-key                Rotate local API key
+  version                  Print package version
 
 Typical flow (Codex):
   1. quay import ~/Downloads/account.json
@@ -226,12 +239,18 @@ async function cmdStart(argv) {
     );
   }
 
+  // notify update (non-blocking race with server start)
+  const updateP = checkForUpdate().catch(() => null);
+
   const started = await startGateway({ port: state.port, host: state.host });
   const { host, port, ui } = started;
   console.log('\n✅ Gateway + UI đang chạy. Giữ process này.');
+  console.log(`   Quay      v${PKG.version || '?'}`);
   console.log(`   Mở UI:  ${ui || `http://${host}:${port}/`}`);
-  console.log('   Trong UI: Thêm JSON → Pool → Gắn vào Codex');
+  console.log(`   Data:   ${DATA_DIR}`);
+  console.log('   Trong UI: Thêm JSON / + Grok → Pool → CLI/IDE Áp dụng');
   console.log('Or set env:\n' + printEnvExport());
+  printUpdateNotice(await updateP);
 
   // best-effort open browser for end users
   if (!process.env.QUAY_NO_OPEN && !process.env.CLG_NO_OPEN) {

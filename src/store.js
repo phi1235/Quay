@@ -1,13 +1,31 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(__dirname, '..');
-export const DATA_DIR = process.env.QUAY_DATA_DIR || process.env.CLG_DATA_DIR
-  ? path.resolve(process.env.QUAY_DATA_DIR || process.env.CLG_DATA_DIR)
-  : path.join(ROOT, 'data');
+
+/**
+ * Data dir:
+ * - QUAY_DATA_DIR / CLG_DATA_DIR if set
+ * - ./data when running from git clone (not inside node_modules)
+ * - ~/.quay when installed via npm (-g or local node_modules)
+ */
+function resolveDataDir() {
+  const env = process.env.QUAY_DATA_DIR || process.env.CLG_DATA_DIR;
+  if (env) return path.resolve(env);
+  const inNodeModules = ROOT.includes(`${path.sep}node_modules${path.sep}`);
+  if (!inNodeModules) {
+    const local = path.join(ROOT, 'data');
+    // keep existing clone data; create on first use via ensureDataDir
+    return local;
+  }
+  return path.join(os.homedir(), '.quay');
+}
+
+export const DATA_DIR = resolveDataDir();
 
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 

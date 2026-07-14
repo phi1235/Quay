@@ -33,20 +33,39 @@ token.json (access_token)
 
 ---
 
-## Quick start (UI)
+## Install (npm)
 
 ```bash
-cd ~/quay
-npm install
-npm start
+npm i -g @phi1235/quay
+quay start
+```
+
+One-shot without global install:
+
+```bash
+npx @phi1235/quay start
+```
+
+Data (accounts, keys, vault) is stored in **`~/.quay`** when installed from npm.  
+Override: `export QUAY_DATA_DIR=/path/to/dir`.
+
+On `quay start`, Quay checks npm for a newer version and prints an update hint if available  
+(`QUAY_NO_UPDATE=1` to disable).
+
+### From source (git)
+
+```bash
+git clone https://github.com/phi1235/Quay.git
+cd Quay && npm install && npm start
+# data stays in ./data when running from clone
 ```
 
 Open: `http://127.0.0.1:43690/`
 
 1. **+ Thêm JSON** — Codex / ChatGPT token  
-2. **+ Grok** — đọc `~/.grok/auth.json` (sau `grok login`)  
+2. **+ Grok** — popup login hoặc `~/.grok/auth.json`  
 3. Account vào **pool**  
-4. **CLI / IDE** → **Gắn vào Codex** (hoặc copy ENV)
+4. **CLI / IDE** → Áp dụng Codex / Grok  
 
 ### CLI
 
@@ -57,15 +76,13 @@ quay pool-add all
 quay start
 quay apply-codex
 
-# Grok (browser login)
-grok login
-quay import-grok
+# Grok
+quay import-grok   # or UI + Grok
 quay start
+quay apply-grok
 eval "$(quay env)"
-# model: grok-4.5 (chat) hoặc grok-build (coding CLI)
+# models: quay-grok-build | quay-grok-45
 ```
-
-Or without global install: `node src/cli.js …`
 
 ### Routing theo model
 
