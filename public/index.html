@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quay</title>
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="application-name" content="Quay" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/logo.svg" />
+    <link rel="stylesheet" href="/styles.css" />
+    <!-- Khôi phục tab trước khi vẽ UI — tránh F5 về Tổng quan -->
+    <script>
+      (function () {
+        var OK = { dashboard: 1, accounts: 1, service: 1, connect: 1, logs: 1 };
+        var h = (location.hash || '').replace(/^#/, '').trim();
+        var v = OK[h] ? h : '';
+        if (!v) {
+          try {
+            v =
+              localStorage.getItem('quay_view') ||
+              sessionStorage.getItem('quay_view') ||
+              localStorage.getItem('clg_view') ||
+              sessionStorage.getItem('clg_view') ||
+              '';
+          } catch (e) {
+            v = '';
+          }
+        }
+        if (!OK[v]) v = 'dashboard';
+        document.documentElement.setAttribute('data-view', v);
+        if (location.hash !== '#' + v) {
+          try {
+            history.replaceState(null, '', location.pathname + location.search + '#' + v);
+          } catch (e) {
+            /* ignore */
+          }
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="/logo.svg" width="36" height="36" alt="" />
+          </div>
+          <div class="brand-text">
+            <strong>Quay</strong>
+            <span>Gateway</span>
+          </div>
+        </div>
+
+        <nav class="nav" id="nav" aria-label="Main">
+          <button type="button" class="nav-item active" data-view="dashboard" data-tip="Tổng quan">
+            <span class="ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z"/></svg>
+            </span>
+            <span class="nav-label">Tổng quan</span>
+          </button>
+          <button type="button" class="nav-item" data-view="accounts" data-tip="Tài khoản">
+            <span class="ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.5"/><path d="M22 21v-2a3.5 3.5 0 0 0-2.5-3.3"/><path d="M16.5 3.7a3.5 3.5 0 0 1 0 6.6"/></svg>
+            </span>
+            <span class="nav-label">Tài khoản</span>
+          </button>
+          <button type="button" class="nav-item" data-view="service" data-tip="Dịch vụ API">
+            <span class="ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="8" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 8h.01M7 17h.01"/></svg>
+            </span>
+            <span class="nav-label">Dịch vụ API</span>
+          </button>
+          <button type="button" class="nav-item" data-view="connect" data-tip="Kết nối CLI / IDE">
+            <span class="ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 9H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-3"/><path d="M16 3h5v5"/><path d="M10 14 21 3"/></svg>
+            </span>
+            <span class="nav-label">CLI / IDE</span>
+          </button>
+
+          <button type="button" class="nav-item" data-view="logs" data-tip="Request log — acc / model đang dùng">
+            <span class="ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15v-4"/><path d="M12 15V8"/><path d="M16 15v-6"/></svg>
+            </span>
+            <span class="nav-label">Logs</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div class="status-pill" id="runPill">
+            <span class="dot"></span>
+            <span id="runPillText">Đang chạy</span>
+          </div>
+          <div class="sidebar-meta mono" id="sidePort">:43690</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="page-head">
+          <div>
+            <h1 id="pageTitle">Tổng quan</h1>
+            <p class="page-desc" id="pageDesc">Trạng thái gateway và pool account</p>
+          </div>
+          <div class="page-actions">
+            <button type="button" class="icon-btn" id="btnRefresh" data-tip="Làm mới dữ liệu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
+            </button>
+            <button type="button" class="btn ghost" id="btnImportGrok" data-tip="Mở login Grok mới (popup) — không đổi acc CLI/web đang dùng">
+              + Grok
+            </button>
+            <button type="button" class="btn primary" id="btnOpenImport" data-tip="Import Codex token JSON">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="btn-ico"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              Thêm JSON
+            </button>
+          </div>
+        </header>
+
+        <!-- Dashboard -->
+        <section class="view active" id="view-dashboard">
+          <div class="stat-row">
+            <div class="stat">
+              <span class="stat-label">Trạng thái</span>
+              <span class="stat-value ok" id="statRun">Đang chạy</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Tài khoản</span>
+              <span class="stat-value" id="statAccounts">0</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Trong pool</span>
+              <span class="stat-value" id="statPool">0</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Cổng</span>
+              <span class="stat-value mono" id="statPort">—</span>
+            </div>
+          </div>
+
+          <div class="card-block">
+            <div class="card-block-head">
+              <h2>Truy cập nhanh</h2>
+            </div>
+            <div class="quick-grid">
+              <button type="button" class="quick" data-goto="accounts">
+                <span class="quick-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.5"/></svg>
+                </span>
+                <strong>Tài khoản</strong>
+                <span>Import, pool, quota</span>
+              </button>
+              <button type="button" class="quick" data-goto="service">
+                <span class="quick-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="8" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/></svg>
+                </span>
+                <strong>Dịch vụ API</strong>
+                <span>URL, key, routing</span>
+              </button>
+              <button type="button" class="quick" data-goto="connect">
+                <span class="quick-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 3h5v5"/><path d="M10 14 21 3"/></svg>
+                </span>
+                <strong>CLI / IDE</strong>
+                <span>Áp dụng cấu hình</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="card-block">
+            <div class="card-block-head">
+              <h2>Pool đang dùng</h2>
+              <button type="button" class="icon-btn sm" data-goto="accounts" data-tip="Xem tất cả tài khoản">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+              </button>
+            </div>
+            <div id="dashPool" class="dash-pool empty-box">Chưa có account trong pool.</div>
+          </div>
+        </section>
+
+        <!-- Accounts -->
+        <section class="view" id="view-accounts">
+          <div class="card-block">
+            <div class="card-block-head">
+              <h2>Danh sách tài khoản</h2>
+              <div class="row gap">
+                <button type="button" class="icon-btn" id="btnPoolAll" data-tip="Thêm tất cả vào pool API">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14"/><path d="M5 12h14"/><rect x="3" y="3" width="18" height="18" rx="3" opacity=".25"/></svg>
+                </button>
+                <button type="button" class="icon-btn" id="btnRefreshQuota" data-tip="Làm mới quota tất cả">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/><path d="M9 12h2l1.5-3 2 6 1.5-3H18" opacity=".9"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="account-toolbar" id="accountToolbar">
+              <label class="search-field" data-tip="Tìm email, plan, id">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+                <input type="search" id="accountSearch" class="input search-input" placeholder="Tìm…" autocomplete="off" />
+              </label>
+              <select id="filterPool" class="input filter-select" data-tip="Lọc pool" aria-label="Pool">
+                <option value="all">Pool</option>
+                <option value="yes">Trong pool</option>
+                <option value="no">Ngoài pool</option>
+              </select>
+              <select id="filterPlan" class="input filter-select" data-tip="Lọc plan" aria-label="Plan">
+                <option value="all">Plan</option>
+              </select>
+              <select id="filterStatus" class="input filter-select" data-tip="Lọc trạng thái" aria-label="Trạng thái">
+                <option value="all">Status</option>
+                <option value="on">Bật</option>
+                <option value="off">Tắt</option>
+                <option value="expired">Hết hạn</option>
+              </select>
+              <span class="filter-count" id="filterCount" aria-live="polite"></span>
+              <button type="button" class="btn ghost sm" id="btnClearFilters" data-tip="Xóa bộ lọc" hidden>×</button>
+            </div>
+            <div id="accountList" class="account-list">
+              <div class="empty-box">Chưa có tài khoản. Bấm <b>Thêm JSON</b>.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Service -->
+        <section class="view" id="view-service">
+          <div class="card-block">
+            <div class="card-block-head">
+              <h2>Endpoint local</h2>
+              <span class="chip ok">Listening</span>
+            </div>
+            <div class="form-stack">
+              <label class="field">
+                <span>Base URL</span>
+                <div class="input-row">
+                  <input id="baseUrl" class="input mono" readonly />
+                  <button type="button" class="icon-btn" data-copy="baseUrl" data-tip="Copy Base URL">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                  </button>
+                </div>
+              </label>
+              <label class="field">
+                <span>Local API Key</span>
+                <div class="input-row">
+                  <input id="apiKey" class="input mono" type="password" readonly />
+                  <button type="button" class="icon-btn" id="btnToggleKey" data-tip="Hiện / ẩn key">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                  </button>
+                  <button type="button" class="icon-btn" data-copy="apiKey" data-tip="Copy API key">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                  </button>
+                  <button type="button" class="icon-btn danger" id="btnRegenKey" data-tip="Tạo key mới">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/><circle cx="12" cy="12" r="2"/></svg>
+                  </button>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="card-block">
+            <div class="card-block-head">
+              <h2>Routing</h2>
+            </div>
+            <label class="field">
+              <span>Cách chọn account trong pool</span>
+              <select id="routing" class="input">
+                <option value="sticky">Sticky — giữ 1 account / session</option>
+                <option value="round_robin">Round robin</option>
+                <option value="random">Random</option>
+                <option value="first">Account đầu tiên</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <!-- Connect — list provider (mở rộng được) -->
+        <section class="view" id="view-connect">
+          <div class="card-block">
+            <div class="card-block-head">
+              <h2>Gắn CLI / IDE vào Quay</h2>
+              <span class="chip plan" id="connectPoolHint">pool · —</span>
+            </div>
+            <div class="provider-list" id="providerList">
+              <article class="provider-row" data-provider="codex">
+                <div class="provider-mark" aria-hidden="true">C</div>
+                <div class="provider-meta">
+                  <div class="provider-name">Codex</div>
+                  <div class="provider-path mono">~/.codex</div>
+                </div>
+                <div class="provider-tags">
+                  <span class="chip ok">pool codex</span>
+                </div>
+                <button type="button" class="btn primary sm" id="btnApplyCodex" data-tip="Ghi auth + config Codex">
+                  Áp dụng
+                </button>
+              </article>
+              <article class="provider-row" data-provider="grok">
+                <div class="provider-mark is-grok" aria-hidden="true">G</div>
+                <div class="provider-meta">
+                  <div class="provider-name">Grok CLI</div>
+                  <div class="provider-path mono">~/.grok/config.toml</div>
+                </div>
+                <div class="provider-tags">
+                  <span class="chip grok">pool grok</span>
+                </div>
+                <button type="button" class="btn primary sm" id="btnApplyGrok" data-tip="Ghi model Quay vào Grok CLI">
+                  Áp dụng
+                </button>
+              </article>
+              <!-- Provider mới: thêm 1 .provider-row -->
+            </div>
+          </div>
+
+          <div class="card-block">
+            <div class="card-block-head">
+              <h2>ENV · OpenAI-compatible</h2>
+              <button type="button" class="icon-btn sm" id="btnCopyEnv" data-tip="Copy ENV">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              </button>
+            </div>
+            <p class="hint wide" style="margin-top:0">Mọi client dùng Base URL + key local (Cursor, SDK, …). Model <code>grok-*</code> → pool Grok; còn lại → pool Codex.</p>
+            <pre id="envBox" class="code compact"></pre>
+          </div>
+          <p class="hint mono" id="dataDir" hidden>—</p>
+        </section>
+
+        <!-- Logs -->
+        <section class="view" id="view-logs">
+          <div class="card-block">
+            <div class="card-block-head">
+              <h2>Request log</h2>
+              <div class="row gap">
+                <button type="button" class="icon-btn" id="btnRefreshLogs" data-tip="Làm mới">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
+                </button>
+                <button type="button" class="btn ghost sm" id="btnClearLogs" data-tip="Xóa log trong RAM">Xóa</button>
+              </div>
+            </div>
+            <p class="hint wide" style="margin-top:0">
+              Acc / model <b>thực tế</b> qua Quay (pin + routing).
+              <b>Weekly limit</b> trên Grok CLI = acc <code>grok login</code>, không phải pin.
+            </p>
+            <div class="log-table-wrap">
+              <table class="log-table" id="logTable">
+                <thead>
+                  <tr>
+                    <th>Thời gian</th>
+                    <th>Provider</th>
+                    <th>Account</th>
+                    <th>Model</th>
+                    <th>Path</th>
+                    <th>ms</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="logBody">
+                  <tr><td colspan="7" class="log-empty">Chưa có request. Gửi chat qua Quay để thấy log.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Import modal -->
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Thêm token JSON</h2>
+          <button type="button" class="icon-btn sm" id="btnCloseImport" data-tip="Đóng">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+        <p class="hint wide">
+          Codex JSON hoặc dán <code>~/.grok/auth.json</code>. Nhiều Grok:
+          <b>grok login</b> từng acc → <b>+ Grok</b> (vault giữ tất cả).
+        </p>
+        <input type="file" id="fileInput" accept=".json,application/json,text/plain" />
+        <textarea id="importText" class="input area mono" placeholder='Codex token JSON hoặc Grok auth.json…'></textarea>
+        <label class="check">
+          <input type="checkbox" id="autoPool" checked />
+          Tự thêm vào pool API sau khi import
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn primary" id="btnDoImport">Import</button>
+        </div>
+        <div id="importResult" class="hint"></div>
+      </div>
+    </div>
+
+    <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card confirm-card">
+        <div class="modal-head">
+          <h2 id="confirmTitle">Xác nhận</h2>
+        </div>
+        <p class="hint wide" id="confirmMessage"></p>
+        <div class="modal-actions confirm-actions">
+          <button type="button" class="btn ghost" id="confirmCancel">Hủy</button>
+          <button type="button" class="btn primary" id="confirmOk">Đồng ý</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tip" class="tip hidden" role="tooltip"></div>
+    <div id="toast" class="toast hidden"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
