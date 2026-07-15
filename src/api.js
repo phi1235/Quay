@@ -17,6 +17,7 @@ import {
   saveAccountQuotaError,
   normalizeProvider,
   patchAccount,
+  clearAccountCooldown,
 } from './store.js';
 import { importTokenInput } from './import-json.js';
 import {
@@ -256,6 +257,20 @@ export function mountAdminApi(app) {
       }
       acc.enabled = Boolean(req.body?.enabled);
       saveState(state);
+      res.json(publicStatus());
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** Clear temporary cooldown (e.g. after Cloudflare 429). */
+  app.post('/api/accounts/:id/clear-cooldown', (req, res) => {
+    try {
+      const acc = clearAccountCooldown(req.params.id);
+      if (!acc) {
+        res.status(404).json({ error: 'Không tìm thấy account' });
+        return;
+      }
       res.json(publicStatus());
     } catch (err) {
       res.status(400).json({ error: err instanceof Error ? err.message : String(err) });

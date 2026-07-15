@@ -132,7 +132,7 @@ Typical flow (Perplexity — cookie export):
   1. Export cookies từ www.perplexity.ai (EditThisCookie / …)
   2. quay import cookies.json   # auto-detect
   3. quay pool-add all && quay start
-  # model: pplx-pro | pplx-turbo | pplx-sonar | pplx-grok | …
+  # model: pplx-pro | pplx-sonar | pplx-gpt-5.6-terra | pplx-claude-sonnet | pplx-glm | pplx-kimi | pplx-grok | pplx-nemotron | …
 
 Data dir: ${DATA_DIR}
 `);
@@ -325,7 +325,7 @@ function cmdApplyGrok(argv) {
   console.log('Models:');
   console.log('  Grok pool:        quay-grok-build | quay-grok-45');
   console.log(
-    '  Perplexity pool:  quay-pplx-pro | quay-pplx-turbo | quay-pplx-sonar | quay-pplx-grok | …',
+    '  Perplexity: quay-pplx-pro | sonar | terra | gemini | claude | glm | kimi | grok | nemotron',
   );
   console.log('(Perplexity không có CLI riêng — dùng Grok CLI làm client.)');
 }

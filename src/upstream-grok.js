@@ -239,21 +239,269 @@ export function chatCompletionToResponses(chatJson, model) {
     chatJson?.choices?.[0]?.message?.content ||
     chatJson?.choices?.[0]?.text ||
     '';
+  const id = chatJson?.id || `resp_quay_${Date.now()}`;
+  const modelId = model || chatJson?.model || 'grok-4.5';
   return {
-    id: chatJson?.id || `resp_quay_grok_${Date.now()}`,
+    id,
     object: 'response',
+    created_at: Math.floor(Date.now() / 1000),
     status: 'completed',
-    model: resolveGrokModel(model || chatJson?.model || 'grok-4.5'),
+    model: modelId,
     output_text: text,
     output: [
       {
+        id: `msg_${id}`,
         type: 'message',
         role: 'assistant',
+        status: 'completed',
         content: [{ type: 'output_text', text }],
       },
     ],
     usage: chatJson?.usage,
   };
+}
+
+/**
+ * Convert OpenAI chat.completions SSE → OpenAI Responses API SSE.
+ * Grok CLI agent often hits /v1/responses; chat.completion.chunk is rejected / empty.
+ * @param {Response} chatSseResponse
+ * @param {string} [model]
+ * @returns {Response}
+ */
+export function chatCompletionSseToResponsesSse(chatSseResponse, model) {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const respId = `resp_quay_${Date.now()}`;
+  const msgId = `msg_${respId}`;
+  const modelId = model || 'unknown';
+  let fullText = '';
+  let started = false;
+
+  const body = new ReadableStream({
+    async start(controller) {
+      const emit = (obj) => {
+        // data-only SSE; `type` field is required by Responses clients
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+      };
+
+      try {
+        if (!chatSseResponse.ok || !chatSseResponse.body) {
+          const errText = await chatSseResponse.text().catch(() => '');
+          emit({
+            type: 'response.failed',
+            response: {
+              id: respId,
+              object: 'response',
+              status: 'failed',
+              error: { message: errText.slice(0, 400) || `upstream ${chatSseResponse.status}` },
+            },
+          });
+          controller.close();
+          return;
+        }
+
+        emit({
+          type: 'response.created',
+          response: {
+            id: respId,
+            object: 'response',
+            created_at: Math.floor(Date.now() / 1000),
+            status: 'in_progress',
+            model: modelId,
+            output: [],
+          },
+        });
+        emit({
+          type: 'response.in_progress',
+          response: {
+            id: respId,
+            object: 'response',
+            status: 'in_progress',
+            model: modelId,
+            output: [],
+          },
+        });
+
+        const reader = chatSseResponse.body.getReader();
+        let buf = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split(/\r?\n/);
+          buf = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data:')) continue;
+            const raw = line.slice(5).trim();
+            if (!raw || raw === '[DONE]') continue;
+            let chunk;
+            try {
+              chunk = JSON.parse(raw);
+            } catch {
+              continue;
+            }
+            const choice = chunk?.choices?.[0];
+            const delta = choice?.delta || {};
+            const content =
+              typeof delta.content === 'string'
+                ? delta.content
+                : typeof delta.text === 'string'
+                  ? delta.text
+                  : '';
+
+            if (!started && (content || delta.role === 'assistant')) {
+              started = true;
+              emit({
+                type: 'response.output_item.added',
+                output_index: 0,
+                item: {
+                  id: msgId,
+                  type: 'message',
+                  role: 'assistant',
+                  status: 'in_progress',
+                  content: [],
+                },
+              });
+              emit({
+                type: 'response.content_part.added',
+                item_id: msgId,
+                output_index: 0,
+                content_index: 0,
+                part: { type: 'output_text', text: '' },
+              });
+            }
+
+            if (content) {
+              if (!started) {
+                started = true;
+                emit({
+                  type: 'response.output_item.added',
+                  output_index: 0,
+                  item: {
+                    id: msgId,
+                    type: 'message',
+                    role: 'assistant',
+                    status: 'in_progress',
+                    content: [],
+                  },
+                });
+                emit({
+                  type: 'response.content_part.added',
+                  item_id: msgId,
+                  output_index: 0,
+                  content_index: 0,
+                  part: { type: 'output_text', text: '' },
+                });
+              }
+              fullText += content;
+              emit({
+                type: 'response.output_text.delta',
+                item_id: msgId,
+                output_index: 0,
+                content_index: 0,
+                delta: content,
+              });
+            }
+          }
+        }
+
+        if (!started) {
+          // Empty upstream — still emit a completed empty message so client does not hang
+          started = true;
+          emit({
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: {
+              id: msgId,
+              type: 'message',
+              role: 'assistant',
+              status: 'in_progress',
+              content: [],
+            },
+          });
+          emit({
+            type: 'response.content_part.added',
+            item_id: msgId,
+            output_index: 0,
+            content_index: 0,
+            part: { type: 'output_text', text: '' },
+          });
+        }
+
+        emit({
+          type: 'response.output_text.done',
+          item_id: msgId,
+          output_index: 0,
+          content_index: 0,
+          text: fullText,
+        });
+        emit({
+          type: 'response.content_part.done',
+          item_id: msgId,
+          output_index: 0,
+          content_index: 0,
+          part: { type: 'output_text', text: fullText },
+        });
+        emit({
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            id: msgId,
+            type: 'message',
+            role: 'assistant',
+            status: 'completed',
+            content: [{ type: 'output_text', text: fullText }],
+          },
+        });
+        emit({
+          type: 'response.completed',
+          response: {
+            id: respId,
+            object: 'response',
+            created_at: Math.floor(Date.now() / 1000),
+            status: 'completed',
+            model: modelId,
+            output_text: fullText,
+            output: [
+              {
+                id: msgId,
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [{ type: 'output_text', text: fullText }],
+              },
+            ],
+          },
+        });
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      } catch (err) {
+        try {
+          emit({
+            type: 'error',
+            error: { message: err instanceof Error ? err.message : String(err) },
+          });
+        } catch {
+          /* ignore */
+        }
+        try {
+          controller.close();
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+  });
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 }
 
 export function grokModels() {

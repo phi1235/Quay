@@ -6,8 +6,10 @@ import {
   loadState,
   pickAccount,
   listPoolAccounts,
+  poolSnapshotForProvider,
   touchAccount,
   cooldownAccount,
+  normalizeProvider,
 } from './store.js';
 import {
   upstreamCodex,
@@ -21,6 +23,7 @@ import {
   upstreamGrokChat,
   responsesBodyToChatCompletions,
   chatCompletionToResponses,
+  chatCompletionSseToResponsesSse,
   inferProvider,
   resolveGrokModel,
 } from './upstream-grok.js';
@@ -31,7 +34,6 @@ import {
 } from './upstream-perplexity.js';
 import { pushRequestLog } from './request-log.js';
 import { mountAdminApi } from './api.js';
-import { normalizeProvider } from './store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
@@ -161,23 +163,33 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
   const stickyKey = stickyKeyFrom(req, body);
   const provider = opts.provider || inferProvider(body.model, req);
   const exclude = new Set();
-  const providerPool = listPoolAccounts().filter(
-    (a) => normalizeProvider(a.provider) === provider,
-  );
-  const poolSize = Math.max(1, providerPool.length);
+  const snap = poolSnapshotForProvider(provider);
+  const providerPool = snap.available;
+  // Only iterate available accounts; if all are cooling, fail fast with a clear message
+  const poolSize = Math.max(providerPool.length, 0);
   let lastStatus = 502;
   let lastBody = JSON.stringify({
-    error: {
-      message:
-        providerPool.length === 0
-          ? `No ${provider} accounts in pool. Import + add to pool first.`
-          : 'upstream failed',
-      type: providerPool.length === 0 ? 'no_pool_account' : 'upstream_error',
-      provider,
-    },
+    error: noPoolErrorBody(provider, snap),
   });
 
   const reqModel = body.model || null;
+
+  if (poolSize === 0) {
+    pushRequestLog({
+      provider,
+      model: reqModel,
+      path: upstreamPath,
+      stream,
+      status: lastStatus,
+      ok: false,
+      error: noPoolErrorBody(provider, snap).message,
+      ms: 0,
+    });
+    if (!res.headersSent) {
+      res.status(lastStatus).type('application/json').send(lastBody);
+    }
+    return;
+  }
 
   for (let attempt = 0; attempt < poolSize; attempt++) {
     const account = pickAccount({ stickyKey, excludeIds: exclude, provider });
@@ -196,7 +208,12 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
           : accProvider === 'perplexity'
             ? resolvePerplexityModel(reqModel)
             : reqModel || null,
-      path: upstreamPath,
+      // Log client path (chat vs responses) — upstreamPath is often "/responses" for both
+      path: opts.asChatCompletions
+        ? '/chat/completions'
+        : upstreamPath.includes('responses')
+          ? '/responses'
+          : upstreamPath,
       stream,
     };
 
@@ -342,48 +359,88 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
         return;
       }
 
-      // non-stream /v1/responses client hitting Grok/Perplexity → reshape to responses
+      // /v1/responses client hitting Grok/Perplexity (chat upstream) → reshape to Responses API
       if (
         (accProvider === 'grok' || accProvider === 'perplexity') &&
-        !stream &&
         !opts.asChatCompletions &&
         upstreamPath.includes('responses')
       ) {
-        const text = await upstream.text();
+        if (!stream) {
+          const text = await upstream.text();
+          if (!upstream.ok) {
+            pushRequestLog({
+              ...logBase,
+              status: upstream.status,
+              ms: Date.now() - t0,
+              ok: false,
+              error: text.slice(0, 160),
+            });
+            res.status(upstream.status).type('application/json').send(text);
+            return;
+          }
+          let json;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            pushRequestLog({
+              ...logBase,
+              status: 502,
+              ms: Date.now() - t0,
+              ok: false,
+              error: 'Invalid upstream JSON',
+            });
+            res
+              .status(502)
+              .json({ error: { message: 'Invalid upstream JSON', body: text } });
+            return;
+          }
+          res.json(chatCompletionToResponses(json, body.model));
+          pushRequestLog({
+            ...logBase,
+            status: 200,
+            ms: Date.now() - t0,
+            ok: true,
+          });
+          console.log(
+            `[gateway] ok ${accProvider} account=${account.email} responses ${Date.now() - t0}ms`,
+          );
+          return;
+        }
+
+        // STREAM: chat.completion.chunk → response.output_text.delta (Grok CLI needs this)
         if (!upstream.ok) {
+          const errText = await upstream.text().catch(() => '');
           pushRequestLog({
             ...logBase,
             status: upstream.status,
             ms: Date.now() - t0,
             ok: false,
-            error: text.slice(0, 160),
+            error: errText.slice(0, 160),
           });
-          res.status(upstream.status).type('application/json').send(text);
+          if (isRetryableUpstreamStatus(upstream.status) && attempt < poolSize - 1) {
+            cooldownAccount(
+              account.id,
+              errText.slice(0, 180),
+              cooldownMsForUpstream(upstream.status, errText),
+            );
+            lastStatus = upstream.status;
+            lastBody = errText || lastBody;
+            continue;
+          }
+          res.status(upstream.status).type('application/json').send(errText);
           return;
         }
-        let json;
-        try {
-          json = JSON.parse(text);
-        } catch {
-          pushRequestLog({
-            ...logBase,
-            status: 502,
-            ms: Date.now() - t0,
-            ok: false,
-            error: 'Invalid Grok JSON',
-          });
-          res.status(502).json({ error: { message: 'Invalid Grok JSON', body: text } });
-          return;
-        }
-        res.json(chatCompletionToResponses(json, body.model));
+
+        const reshaped = chatCompletionSseToResponsesSse(upstream, body.model);
         pushRequestLog({
           ...logBase,
           status: 200,
           ms: Date.now() - t0,
           ok: true,
         });
+        await pipeUpstream(reshaped, res, true);
         console.log(
-          `[gateway] ok ${accProvider} account=${account.email} responses ${Date.now() - t0}ms`,
+          `[gateway] ok ${accProvider} account=${account.email} responses-stream ${Date.now() - t0}ms`,
         );
         return;
       }
@@ -426,6 +483,11 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
   }
 
   if (!res.headersSent) {
+    // Refresh snapshot — last attempt may have put everyone on cooldown
+    const finalSnap = poolSnapshotForProvider(provider);
+    if (finalSnap.available.length === 0 && finalSnap.cooling.length > 0) {
+      lastBody = JSON.stringify({ error: noPoolErrorBody(provider, finalSnap) });
+    }
     pushRequestLog({
       provider,
       model: reqModel,
@@ -433,11 +495,50 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
       stream,
       status: lastStatus,
       ok: false,
-      error: 'all pool accounts failed',
+      error:
+        finalSnap.available.length === 0 && finalSnap.cooling.length > 0
+          ? noPoolErrorBody(provider, finalSnap).message
+          : 'all pool accounts failed',
       ms: 0,
     });
     res.status(lastStatus).type('application/json').send(lastBody);
   }
+}
+
+/**
+ * @param {string} provider
+ * @param {{ available: any[], cooling: any[], totalInPool: number }} snap
+ */
+function noPoolErrorBody(provider, snap) {
+  if (snap.totalInPool === 0) {
+    return {
+      message: `No ${provider} accounts in pool. Import + add to pool first.`,
+      type: 'no_pool_account',
+      provider,
+    };
+  }
+  if (snap.available.length === 0 && snap.cooling.length > 0) {
+    const until = Math.max(...snap.cooling.map((a) => a.cooldownUntil || 0));
+    const waitSec = Math.max(1, Math.ceil((until - Date.now()) / 1000));
+    const lastErr = snap.cooling.map((a) => a.lastError).find(Boolean) || '';
+    const cf =
+      /just a moment|cloudflare|cf-ray/i.test(String(lastErr)) ||
+      /upstream 429/i.test(String(lastErr));
+    return {
+      message: cf
+        ? `Perplexity/Cloudflare rate-limited this cookie session. Wait ~${waitSec}s (or re-export cookies), then retry. Do not spam /model switches.`
+        : `All ${provider} pool accounts are cooling down (~${waitSec}s left). Last: ${String(lastErr).slice(0, 160)}`,
+      type: 'pool_cooldown',
+      provider,
+      cooldownSeconds: waitSec,
+      lastError: String(lastErr).slice(0, 240) || null,
+    };
+  }
+  return {
+    message: 'upstream failed',
+    type: 'upstream_error',
+    provider,
+  };
 }
 
 /**

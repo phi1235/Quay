@@ -37,42 +37,66 @@ const MODELS = [
     name: 'Quay · Grok 4.5',
     description: 'Chat via Quay Grok pool',
   },
-  // --- Perplexity pool (no native CLI — use Grok CLI as client) ---
+  // --- Perplexity pool (Pro unlocked; no native CLI — use Grok CLI as client) ---
   {
     slug: 'quay-pplx-pro',
     model: 'pplx-pro',
-    name: 'Quay · Perplexity Pro',
-    description: 'Perplexity Best/Pro via Quay cookie pool',
+    name: 'Quay · PPLX · Best',
+    description: 'Perplexity Best (pplx_pro) via Quay cookies',
   },
   {
     slug: 'quay-pplx-turbo',
     model: 'pplx-turbo',
-    name: 'Quay · Perplexity Turbo',
-    description: 'Perplexity Sonar/Turbo via Quay',
+    name: 'Quay · PPLX · Best Turbo',
+    description: 'Perplexity Best turbo via Quay',
   },
   {
     slug: 'quay-pplx-sonar',
     model: 'pplx-sonar',
-    name: 'Quay · Perplexity Sonar',
-    description: 'Perplexity Sonar search via Quay',
+    name: 'Quay · PPLX · Sonar 2',
+    description: 'Perplexity Sonar 2 via Quay',
   },
   {
-    slug: 'quay-pplx-grok',
-    model: 'pplx-grok',
-    name: 'Quay · PPLX · Grok',
-    description: 'Grok model on Perplexity via Quay cookies',
-  },
-  {
-    slug: 'quay-pplx-claude',
-    model: 'pplx-claude-sonnet',
-    name: 'Quay · PPLX · Claude Sonnet',
-    description: 'Claude Sonnet on Perplexity via Quay',
+    slug: 'quay-pplx-terra',
+    model: 'pplx-gpt-5.6-terra',
+    name: 'Quay · PPLX · GPT-5.6 Terra',
+    description: 'GPT-5.6 Terra on Perplexity (Pro)',
   },
   {
     slug: 'quay-pplx-gemini',
     model: 'pplx-gemini',
-    name: 'Quay · PPLX · Gemini',
-    description: 'Gemini on Perplexity via Quay',
+    name: 'Quay · PPLX · Gemini 3.1 Pro',
+    description: 'Gemini 3.1 Pro on Perplexity (Pro)',
+  },
+  {
+    slug: 'quay-pplx-claude',
+    model: 'pplx-claude-sonnet',
+    name: 'Quay · PPLX · Claude Sonnet 5',
+    description: 'Claude Sonnet 5 on Perplexity (Pro)',
+  },
+  {
+    slug: 'quay-pplx-glm',
+    model: 'pplx-glm',
+    name: 'Quay · PPLX · GLM 5.2',
+    description: 'GLM 5.2 on Perplexity (Pro)',
+  },
+  {
+    slug: 'quay-pplx-kimi',
+    model: 'pplx-kimi',
+    name: 'Quay · PPLX · Kimi K2.6',
+    description: 'Kimi K2.6 on Perplexity (Pro)',
+  },
+  {
+    slug: 'quay-pplx-grok',
+    model: 'pplx-grok',
+    name: 'Quay · PPLX · Grok 4.5',
+    description: 'Grok 4.5 on Perplexity (Pro)',
+  },
+  {
+    slug: 'quay-pplx-nemotron',
+    model: 'pplx-nemotron',
+    name: 'Quay · PPLX · Nemotron 3 Ultra',
+    description: 'Nemotron 3 Ultra on Perplexity (Pro)',
   },
 ];
 
@@ -109,7 +133,7 @@ export function applyGrokConfig(opts = {}) {
     models: MODELS.map((m) => m.slug),
     defaultModel: opts.setDefault !== false ? 'quay-grok-build' : null,
     note:
-      'Grok CLI: /model quay-grok-build | quay-grok-45 | quay-pplx-pro | quay-pplx-turbo | …. Restart grok CLI.',
+      'Grok CLI: /model quay-grok-build | quay-grok-45 | quay-pplx-pro | quay-pplx-sonar | quay-pplx-terra | quay-pplx-claude | …. Restart grok CLI.',
   };
 }
 
@@ -220,7 +244,8 @@ export function printGrokEnvExport() {
     `export OPENAI_API_KEY="${state.localApiKey}"`,
     `# Grok CLI models (via Quay):`,
     `#   quay-grok-build | quay-grok-45`,
-    `#   quay-pplx-pro | quay-pplx-turbo | quay-pplx-sonar | quay-pplx-grok | …`,
+    `#   quay-pplx-pro | quay-pplx-sonar | quay-pplx-terra | quay-pplx-gemini |`,
+    `#   quay-pplx-claude | quay-pplx-glm | quay-pplx-kimi | quay-pplx-grok | quay-pplx-nemotron`,
   ].join('\n');
 }
 
