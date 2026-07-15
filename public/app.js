@@ -497,12 +497,16 @@ function renderAccounts(s) {
           : '',
         a.expired ? '<span class="chip warn">hết hạn</span>' : '',
         !a.enabled ? '<span class="chip warn">tắt</span>' : '',
+        a.coolingDown ? '<span class="chip warn">cooldown</span>' : '',
+        /deactivated_workspace/i.test(String(a.quotaError || a.lastError || ''))
+          ? '<span class="chip danger">deactivated</span>'
+          : '',
       ]
         .filter(Boolean)
         .join('');
 
       return `
-      <article class="account ${a.pinned ? 'is-pinned' : ''}" data-id="${escapeHtml(a.id)}" data-enabled="${a.enabled ? '1' : '0'}">
+      <article class="account ${a.pinned ? 'is-pinned' : ''} ${a.quotaError || a.lastError ? 'has-error' : ''}" data-id="${escapeHtml(a.id)}" data-enabled="${a.enabled ? '1' : '0'}">
         <div class="account-row">
           <div class="account-main">
             <div class="email" title="${escapeHtml(a.email)}">${escapeHtml(a.email)}</div>
@@ -565,16 +569,51 @@ function renderQuota(a) {
   if (a.provider === 'grok') {
     return renderGrokHint(a);
   }
+  const errBanner = renderAccountError(a);
   const q = a.quota;
   if (!q) {
-    return `<div class="quota-empty">Chưa có quota — bấm ↻ để lấy</div>`;
+    return `${errBanner}<div class="quota-empty">${
+      a.quotaError
+        ? escapeHtml(shortError(a.quotaError))
+        : 'Chưa có quota — bấm ↻ để lấy'
+    }</div>`;
   }
   // Nhãn theo limit_window_seconds thật (free = 30 ngày, k12 = 5 giờ + 7 ngày)
   return `
+    ${errBanner}
     <div class="quota-grid">
       ${quotaCard(windowTitle(q.hourly, 'Cửa sổ 1'), 'Primary window', q.hourly)}
       ${quotaCard(windowTitle(q.weekly, 'Cửa sổ 2'), 'Secondary window', q.weekly)}
     </div>`;
+}
+
+/** Banner lỗi token / workspace (402 deactivated, 401, …) */
+function renderAccountError(a) {
+  const raw = a.quotaError || a.lastError;
+  if (!raw) return '';
+  const short = shortError(raw);
+  const isDead = /deactivated|402|Unauthorized|401|403/i.test(String(raw));
+  return `<div class="account-error ${isDead ? 'is-dead' : ''}" title="${escapeHtml(String(raw))}">${escapeHtml(short)}</div>`;
+}
+
+function shortError(raw) {
+  const s = String(raw || '');
+  if (/deactivated_workspace/i.test(s)) return 'Workspace đã bị deactivate (402)';
+  if (/Unauthorized|401/i.test(s)) return 'Token không hợp lệ / không có quyền Codex (401)';
+  if (/403/i.test(s)) return 'Bị từ chối (403)';
+  if (/429|rate/i.test(s)) return 'Rate limit (429)';
+  // Quota API 402: {...}
+  const m = s.match(/Quota API\s+(\d+):\s*(.+)/i);
+  if (m) {
+    try {
+      const j = JSON.parse(m[2]);
+      const code = j?.detail?.code || j?.detail || m[2];
+      return `Quota ${m[1]}: ${typeof code === 'string' ? code : JSON.stringify(code)}`;
+    } catch {
+      return s.length > 120 ? `${s.slice(0, 120)}…` : s;
+    }
+  }
+  return s.length > 140 ? `${s.slice(0, 140)}…` : s;
 }
 
 function renderGrokHint(a) {
