@@ -177,5 +177,33 @@ export function defaultModels() {
 
 /** statuses where trying another pool account makes sense */
 export function isRetryableUpstreamStatus(status) {
-  return status === 401 || status === 403 || status === 429 || status === 503;
+  // 402: payment / deactivated workspace (ChatGPT k12, etc.)
+  return (
+    status === 401 ||
+    status === 402 ||
+    status === 403 ||
+    status === 429 ||
+    status === 503
+  );
+}
+
+/**
+ * Longer skip for permanent-looking auth/workspace failures.
+ * @param {number} status
+ * @param {string} [body]
+ */
+export function cooldownMsForUpstream(status, body = '') {
+  const text = String(body || '');
+  if (
+    status === 402 ||
+    /deactivated_workspace|workspace_deactivated|account_deactivated/i.test(text)
+  ) {
+    // workspace chết — đừng spam lại trong 30 phút
+    return 30 * 60_000;
+  }
+  if (status === 401 || status === 403) {
+    return 5 * 60_000;
+  }
+  if (status === 429) return 60_000;
+  return 120_000;
 }

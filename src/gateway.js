@@ -15,6 +15,7 @@ import {
   responsesToChatCompletion,
   defaultModels,
   isRetryableUpstreamStatus,
+  cooldownMsForUpstream,
 } from './upstream.js';
 import {
   upstreamGrokChat,
@@ -234,10 +235,11 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
         const errText = await upstream.text().catch(() => '');
         lastStatus = upstream.status;
         lastBody = errText || lastBody;
+        const errLabel = `upstream ${upstream.status}: ${errText.slice(0, 180)}`;
         cooldownAccount(
           account.id,
-          `upstream ${upstream.status}: ${errText.slice(0, 180)}`,
-          upstream.status === 429 ? 60_000 : 120_000,
+          errLabel,
+          cooldownMsForUpstream(upstream.status, errText),
         );
         pushRequestLog({
           ...logBase,
@@ -265,7 +267,11 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
           });
           res.status(upstream.status).type('application/json').send(text);
           if (isRetryableUpstreamStatus(upstream.status)) {
-            cooldownAccount(account.id, text.slice(0, 180));
+            cooldownAccount(
+              account.id,
+              text.slice(0, 180),
+              cooldownMsForUpstream(upstream.status, text),
+            );
           }
           return;
         }
@@ -347,6 +353,15 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
         return;
       }
 
+      if (!upstream.ok && isRetryableUpstreamStatus(upstream.status)) {
+        // last pool attempt (or sole account) — still mark cooldown
+        const peek = await upstream.clone().text().catch(() => '');
+        cooldownAccount(
+          account.id,
+          `upstream ${upstream.status}: ${peek.slice(0, 180)}`,
+          cooldownMsForUpstream(upstream.status, peek),
+        );
+      }
       pushRequestLog({
         ...logBase,
         status: upstream.status,
@@ -355,7 +370,7 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
       });
       await pipeUpstream(upstream, res, stream);
       console.log(
-        `[gateway] ok ${accProvider} account=${account.email} path=${upstreamPath} status=${upstream.status} ${Date.now() - t0}ms stream=${stream}`,
+        `[gateway] ${upstream.ok ? 'ok' : 'fail'} ${accProvider} account=${account.email} path=${upstreamPath} status=${upstream.status} ${Date.now() - t0}ms stream=${stream}`,
       );
       return;
     } catch (err) {

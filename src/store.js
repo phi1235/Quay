@@ -557,6 +557,15 @@ export function saveAccountQuotaError(id, error) {
   if (!acc) throw new Error(`Account not found: ${id}`);
   acc.quotaError = error;
   acc.quotaUpdatedAt = new Date().toISOString();
+  // Workspace/account chết — bỏ quota cũ (UI đang hiện % xanh giả)
+  if (/deactivated_workspace|402|Unauthorized|401|403/i.test(String(error || ''))) {
+    acc.lastError = String(error).slice(0, 240);
+    if (/deactivated_workspace/i.test(String(error || ''))) {
+      acc.quota = null;
+      // skip pool pick 30 phút — tránh spam request chết
+      acc.cooldownUntil = Date.now() + 30 * 60_000;
+    }
+  }
   saveStateNow();
   return acc;
 }
