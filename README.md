@@ -98,7 +98,22 @@ quay apply-grok            # registers quay-pplx-* into ~/.grok/config.toml
 | `pplx-*`, `sonar` | Perplexity (browser cookies) → web session SSE |
 | còn lại (gpt-*, o*) | Codex / ChatGPT session |
 
-**Grok CLI slugs** (sau `quay apply-grok`): `quay-grok-build`, `quay-grok-45`, `quay-pplx-pro`, `quay-pplx-turbo`, `quay-pplx-sonar`, `quay-pplx-grok`, `quay-pplx-claude`, `quay-pplx-gemini`.
+**Grok CLI slugs** (sau `quay apply-grok`), Perplexity Pro unlocked:
+
+| Slug | Web model | `model_preference` |
+|------|-----------|--------------------|
+| `quay-pplx-pro` | Best | `pplx_pro` |
+| `quay-pplx-turbo` | Best (turbo) | `turbo` |
+| `quay-pplx-sonar` | Sonar 2 | `experimental` |
+| `quay-pplx-terra` | GPT-5.6 Terra | `gpt56_terra` |
+| `quay-pplx-gemini` | Gemini 3.1 Pro | `gemini31pro_high` |
+| `quay-pplx-claude` | Claude Sonnet 5 | `claude50sonnet` |
+| `quay-pplx-glm` | GLM 5.2 | `glm_5_2` |
+| `quay-pplx-kimi` | Kimi K2.6 | `kimik26instant` |
+| `quay-pplx-grok` | Grok 4.5 | `grok45low` |
+| `quay-pplx-nemotron` | Nemotron 3 Ultra | `nv_nemotron_3_ultra` |
+
+Max-locked web models (GPT-5.6 Sol, Claude Opus 4.8) are not registered.
 
 Override: header `X-Quay-Provider: grok|codex|perplexity`
 

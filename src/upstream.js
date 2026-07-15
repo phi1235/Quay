@@ -173,9 +173,13 @@ export function defaultModels() {
     'pplx-pro',
     'pplx-turbo',
     'pplx-sonar',
-    'pplx-grok',
-    'pplx-claude-sonnet',
+    'pplx-gpt-5.6-terra',
     'pplx-gemini',
+    'pplx-claude-sonnet',
+    'pplx-glm',
+    'pplx-kimi',
+    'pplx-grok',
+    'pplx-nemotron',
     'sonar',
   ].map((id) => ({ id, object: 'model', created: 0, owned_by: 'perplexity' }));
 
@@ -214,6 +218,12 @@ export function cooldownMsForUpstream(status, body = '') {
   if (status === 401 || status === 403) {
     return 5 * 60_000;
   }
-  if (status === 429) return 60_000;
+  // Cloudflare HTML challenge / rate limit — longer cool-down so UI stops spam-502s
+  if (
+    status === 429 ||
+    /just a moment|cloudflare|cf-ray|attention required/i.test(text)
+  ) {
+    return 90_000;
+  }
   return 120_000;
 }

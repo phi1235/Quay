@@ -832,7 +832,7 @@ function bindUi() {
   bindApply('btnApplyGrok', {
     title: 'Gắn Grok CLI',
     message:
-      'Ghi model Quay vào ~/.grok/config.toml?\n• Grok pool: quay-grok-build, quay-grok-45\n• Perplexity (không có CLI riêng): quay-pplx-pro, quay-pplx-turbo, …',
+      'Ghi model Quay vào ~/.grok/config.toml?\n• Grok: quay-grok-build, quay-grok-45\n• PPLX Pro: quay-pplx-pro, sonar, terra, gemini, claude, glm, kimi, grok, nemotron',
     path: '/api/apply-grok',
     body: { backup: true, setDefault: true },
     okToast:

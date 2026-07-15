@@ -338,7 +338,10 @@ function clearPinIfMatch(state, accountId) {
   }
 }
 
-/** @returns {Account[]} */
+/**
+ * Pool members that can currently be used (enabled, not expired, not cooling down).
+ * @returns {Account[]}
+ */
 export function listPoolAccounts() {
   const state = loadState();
   const now = Date.now();
@@ -348,6 +351,37 @@ export function listPoolAccounts() {
     .filter((a) => a.enabled)
     .filter((a) => !isExpired(a))
     .filter((a) => !a.cooldownUntil || a.cooldownUntil <= now);
+}
+
+/**
+ * Pool members for a provider, including those on cooldown (for error messages).
+ * @param {'codex' | 'grok' | 'perplexity' | string | null | undefined} provider
+ * @returns {{ available: Account[], cooling: Account[], totalInPool: number }}
+ */
+export function poolSnapshotForProvider(provider) {
+  const state = loadState();
+  const now = Date.now();
+  const prov = provider ? normalizeProvider(provider) : null;
+  const members = state.poolAccountIds
+    .map((id) => state.accounts.find((a) => a.id === id))
+    .filter(Boolean)
+    .filter((a) => a.enabled)
+    .filter((a) => !isExpired(a))
+    .filter((a) => !prov || normalizeProvider(a.provider) === prov);
+  const available = members.filter((a) => !a.cooldownUntil || a.cooldownUntil <= now);
+  const cooling = members.filter((a) => a.cooldownUntil && a.cooldownUntil > now);
+  return { available, cooling, totalInPool: members.length };
+}
+
+/** Clear cooldown so the account can be tried again immediately. */
+export function clearAccountCooldown(id) {
+  const state = loadState();
+  const acc = state.accounts.find((a) => a.id === id);
+  if (!acc) return null;
+  acc.cooldownUntil = null;
+  acc.lastError = null;
+  scheduleSave();
+  return acc;
 }
 
 /**

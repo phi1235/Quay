@@ -15,41 +15,97 @@ const DEFAULT_UA =
   process.env.QUAY_PPLX_UA ||
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-/** CLI / OpenAI model id → Perplexity model_preference */
+/**
+ * CLI / OpenAI model id → Perplexity model_preference
+ * Keys from /rest/models/config (Pro tier, unlocked search models only).
+ * Max-locked (Sol / Opus) intentionally omitted.
+ */
 const MODEL_ALIASES = {
-  // defaults
-  'pplx': 'turbo',
-  'perplexity': 'turbo',
-  'pplx-default': 'turbo',
+  // --- Best (default search) ---
+  pplx: 'pplx_pro',
+  perplexity: 'pplx_pro',
+  'pplx-default': 'pplx_pro',
   'pplx-best': 'pplx_pro',
   'pplx-pro': 'pplx_pro',
-  'pplx_pro': 'pplx_pro',
-  'turbo': 'turbo',
+  pplx_pro: 'pplx_pro',
+  turbo: 'turbo',
   'pplx-turbo': 'turbo',
-  // Grok CLI slugs (apply-grok → model field is already pplx-*, but slug may leak)
+
+  // --- Sonar 2 ---
+  sonar: 'experimental',
+  'sonar-2': 'experimental',
+  'pplx-sonar': 'experimental',
+  'pplx-sonar-2': 'experimental',
+  experimental: 'experimental',
+
+  // --- GPT-5.6 Terra (Pro) ---
+  'pplx-gpt-5.6-terra': 'gpt56_terra',
+  'pplx-gpt56-terra': 'gpt56_terra',
+  'pplx-terra': 'gpt56_terra',
+  gpt56_terra: 'gpt56_terra',
+  'pplx-gpt-5.6-terra-thinking': 'gpt56_terra_thinking',
+  gpt56_terra_thinking: 'gpt56_terra_thinking',
+
+  // --- Gemini 3.1 Pro (Pro; reasoning-only in config) ---
+  'pplx-gemini': 'gemini31pro_high',
+  'pplx-gemini-3.1-pro': 'gemini31pro_high',
+  'pplx-gemini-31-pro': 'gemini31pro_high',
+  gemini31pro_high: 'gemini31pro_high',
+  gemini31pro_low: 'gemini31pro_low',
+
+  // --- Claude Sonnet 5 (Pro) ---
+  'pplx-claude': 'claude50sonnet',
+  'pplx-claude-sonnet': 'claude50sonnet',
+  'pplx-claude-sonnet-5': 'claude50sonnet',
+  'pplx-claude-5': 'claude50sonnet',
+  claude50sonnet: 'claude50sonnet',
+  'pplx-claude-sonnet-5-thinking': 'claude50sonnetthinking',
+  claude50sonnetthinking: 'claude50sonnetthinking',
+
+  // --- GLM 5.2 (Pro; reasoning-only) ---
+  'pplx-glm': 'glm_5_2',
+  'pplx-glm-5.2': 'glm_5_2',
+  'pplx-glm-5-2': 'glm_5_2',
+  glm_5_2: 'glm_5_2',
+
+  // --- Kimi K2.6 (Pro) ---
+  'pplx-kimi': 'kimik26instant',
+  'pplx-kimi-k2.6': 'kimik26instant',
+  'pplx-kimi-k26': 'kimik26instant',
+  kimik26instant: 'kimik26instant',
+  'pplx-kimi-thinking': 'kimik26thinking',
+  kimik26thinking: 'kimik26thinking',
+
+  // --- Grok 4.5 on Perplexity (Pro) ---
+  'pplx-grok': 'grok45low',
+  'pplx-grok-4.5': 'grok45low',
+  'pplx-grok-45': 'grok45low',
+  grok45low: 'grok45low',
+  'pplx-grok-thinking': 'grok45medium',
+  grok45medium: 'grok45medium',
+
+  // --- Nemotron 3 Ultra (Pro; reasoning-only) ---
+  'pplx-nemotron': 'nv_nemotron_3_ultra',
+  'pplx-nemotron-3-ultra': 'nv_nemotron_3_ultra',
+  'pplx-nemotron-ultra': 'nv_nemotron_3_ultra',
+  nv_nemotron_3_ultra: 'nv_nemotron_3_ultra',
+
+  // --- Grok CLI slugs (apply-grok; model field is pplx-*, slug may leak) ---
   'quay-pplx-pro': 'pplx_pro',
+  'quay-pplx-best': 'pplx_pro',
   'quay-pplx-turbo': 'turbo',
-  'quay-pplx-sonar': 'turbo',
-  'quay-pplx-grok': 'grok',
-  'quay-pplx-claude': 'claude45sonnet',
-  'quay-pplx-gemini': 'gemini2flash',
-  // sonar
-  'sonar': 'turbo',
-  'sonar-2': 'turbo',
-  'pplx-sonar': 'turbo',
-  'pplx-sonar-2': 'turbo',
-  // models shown in web UI (best-effort preference keys)
-  'pplx-grok': 'grok',
-  'pplx-grok-4.5': 'grok',
-  'pplx-grok-45': 'grok',
-  'pplx-claude-sonnet': 'claude45sonnet',
-  'pplx-claude-sonnet-5': 'claude45sonnet',
-  'pplx-gemini': 'gemini2flash',
-  'pplx-gemini-3.1-pro': 'gemini2flash',
-  'pplx-gpt-5.6-terra': 'gpt45',
-  'pplx-gpt56-terra': 'gpt45',
-  'pplx-glm': 'experimental',
-  'pplx-glm-5.2': 'experimental',
+  'quay-pplx-sonar': 'experimental',
+  'quay-pplx-sonar-2': 'experimental',
+  'quay-pplx-terra': 'gpt56_terra',
+  'quay-pplx-gpt56-terra': 'gpt56_terra',
+  'quay-pplx-gemini': 'gemini31pro_high',
+  'quay-pplx-claude': 'claude50sonnet',
+  'quay-pplx-claude-sonnet': 'claude50sonnet',
+  'quay-pplx-glm': 'glm_5_2',
+  'quay-pplx-kimi': 'kimik26instant',
+  'quay-pplx-grok': 'grok45low',
+  'quay-pplx-grok-45': 'grok45low',
+  'quay-pplx-nemotron': 'nv_nemotron_3_ultra',
 };
 
 /**
@@ -125,7 +181,8 @@ export async function upstreamPerplexityChat(account, body, opts = {}) {
       query_source: 'home',
       is_incognito: false,
       use_schematized_api: true,
-      send_back_text_in_streaming_api: false,
+      // Prefer progressive text fields when the backend supports them
+      send_back_text_in_streaming_api: true,
     },
   };
 
@@ -189,15 +246,19 @@ export function perplexityBodyToChatCompletions(body) {
   });
 }
 
+/** OpenAI-style model list: Pro-unlocked search models from web UI */
 export function perplexityModels() {
   const ids = [
-    'pplx-pro',
-    'pplx-turbo',
-    'pplx-sonar',
-    'pplx-grok',
-    'pplx-claude-sonnet',
-    'pplx-gemini',
+    'pplx-pro', // Best
+    'pplx-turbo', // Best (turbo)
+    'pplx-sonar', // Sonar 2
     'pplx-gpt-5.6-terra',
+    'pplx-gemini',
+    'pplx-claude-sonnet',
+    'pplx-glm',
+    'pplx-kimi',
+    'pplx-grok',
+    'pplx-nemotron',
     'sonar',
   ];
   return ids.map((id) => ({
@@ -209,31 +270,98 @@ export function perplexityModels() {
 }
 
 /**
- * @param {Array<{role?: string, content?: any}> | undefined} messages
+ * Flatten one message content to plain text.
+ * @param {any} content
+ */
+function contentToText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((c) => c?.text || c?.input_text || c?.output_text || '')
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+}
+
+/**
+ * Build a Perplexity web query from OpenAI-style messages.
+ *
+ * Grok CLI injects a huge coding-agent system prompt + tool schemas. Dumping
+ * that into Perplexity's query_str makes the upstream fail with
+ * status=FAILED / "Error in processing query." — so we:
+ *   - drop system/developer prompts (PPLX is a search chat, not an agent host)
+ *   - drop tool-call noise
+ *   - keep only a short recent user/assistant tail
+ *   - hard-cap length
+ *
+ * @param {Array<{role?: string, content?: any, tool_calls?: any}> | undefined} messages
  */
 function messagesToQuery(messages) {
   if (!Array.isArray(messages) || messages.length === 0) return 'hello';
-  const parts = [];
+
+  /** @type {{role: string, text: string}[]} */
+  const turns = [];
   for (const m of messages) {
-    const role = m?.role || 'user';
-    let text = '';
-    if (typeof m?.content === 'string') text = m.content;
-    else if (Array.isArray(m?.content)) {
-      text = m.content
-        .map((c) => c?.text || c?.input_text || c?.output_text || '')
-        .filter(Boolean)
-        .join('\n');
+    const role = String(m?.role || 'user').toLowerCase();
+    // Never forward agent system / tool plumbing to Perplexity
+    if (
+      role === 'system' ||
+      role === 'developer' ||
+      role === 'tool' ||
+      role === 'function'
+    ) {
+      continue;
     }
+    // Skip pure tool-call assistant messages (no user-visible text)
+    if (role === 'assistant' && Array.isArray(m?.tool_calls) && m.tool_calls.length) {
+      const t = contentToText(m?.content).trim();
+      if (!t) continue;
+    }
+    const text = contentToText(m?.content).trim();
     if (!text) continue;
-    if (role === 'system' || role === 'developer') {
-      parts.push(`[system] ${text}`);
-    } else if (role === 'assistant') {
-      parts.push(`[assistant] ${text}`);
-    } else {
-      parts.push(text);
-    }
+    turns.push({ role: role === 'assistant' ? 'assistant' : 'user', text });
   }
-  return parts.join('\n\n').trim() || 'hello';
+
+  if (!turns.length) {
+    // Fallback: last non-empty content anywhere (rare)
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const t = contentToText(messages[i]?.content).trim();
+      if (t) return truncateQuery(t);
+    }
+    return 'hello';
+  }
+
+  // Prefer last user turn alone for short chit-chat; add brief prior context if multi-turn
+  const lastUserIdx = (() => {
+    for (let i = turns.length - 1; i >= 0; i--) {
+      if (turns[i].role === 'user') return i;
+    }
+    return turns.length - 1;
+  })();
+
+  const lastUser = turns[lastUserIdx];
+  // Include at most 2 prior turns (user/assistant) for context — still small
+  const start = Math.max(0, lastUserIdx - 2);
+  const slice = turns.slice(start, lastUserIdx + 1);
+
+  if (slice.length === 1) {
+    return truncateQuery(lastUser.text);
+  }
+
+  const parts = slice.map((t) =>
+    t.role === 'assistant' ? `[assistant] ${t.text}` : t.text,
+  );
+  return truncateQuery(parts.join('\n\n'));
+}
+
+/** @param {string} q */
+function truncateQuery(q) {
+  const MAX = 4000; // Perplexity web fails / degrades on huge agent dumps
+  const s = String(q || '').trim();
+  if (!s) return 'hello';
+  if (s.length <= MAX) return s;
+  return s.slice(0, MAX - 20) + '\n…[truncated]';
 }
 
 /**
@@ -241,6 +369,8 @@ function messagesToQuery(messages) {
  */
 async function collectAnswerFromSse(res) {
   const text = await res.text();
+  /** @type {string[]} */
+  let chunkParts = [];
   let answer = '';
   let lastFinal = '';
   for (const line of text.split(/\r?\n/)) {
@@ -249,7 +379,7 @@ async function collectAnswerFromSse(res) {
     if (!raw || raw === '[DONE]') continue;
     try {
       const ev = JSON.parse(raw);
-      const extracted = extractAnswer(ev);
+      const extracted = extractAnswer(ev, chunkParts);
       if (extracted) {
         answer = extracted;
         if (ev.final || ev.status === 'COMPLETED' || ev.text_completed) {
@@ -264,13 +394,44 @@ async function collectAnswerFromSse(res) {
 }
 
 /**
+ * Rebuild progressive markdown from Perplexity `chunks` + `chunk_starting_offset`
+ * (offset is a chunk index, not a character index).
  * @param {any} ev
+ * @param {string[]} chunkParts  mutable accumulator across SSE events
+ * @returns {string}
  */
-function extractAnswer(ev) {
-  if (!ev || typeof ev !== 'object') return '';
-  if (typeof ev.text === 'string' && ev.text && !ev.text.startsWith('[{')) {
-    // sometimes text is JSON dump of steps — skip that form if blocks exist
+function applyMarkdownChunks(ev, chunkParts) {
+  const blocks = Array.isArray(ev?.blocks) ? ev.blocks : [];
+  let best = '';
+  for (const b of blocks) {
+    const md = b?.markdown_block;
+    if (!md || typeof md !== 'object') continue;
+    if (typeof md.answer === 'string' && md.answer) {
+      best = md.answer;
+      continue;
+    }
+    const chunks = Array.isArray(md.chunks) ? md.chunks : null;
+    if (!chunks || !chunks.length) continue;
+    const offset = Number.isFinite(md.chunk_starting_offset)
+      ? Math.max(0, Number(md.chunk_starting_offset))
+      : 0;
+    const strChunks = chunks.map((c) => (typeof c === 'string' ? c : String(c ?? '')));
+    // Replace from chunk index `offset` (SSE deltas are partial arrays)
+    chunkParts.splice(offset, chunkParts.length - offset, ...strChunks);
+    const joined = chunkParts.join('');
+    if (joined.length >= best.length) best = joined;
   }
+  return best;
+}
+
+/**
+ * @param {any} ev
+ * @param {string[]} [chunkParts]
+ */
+function extractAnswer(ev, chunkParts) {
+  if (!ev || typeof ev !== 'object') return '';
+
+  // Prefer explicit answer fields (final / completed events)
   const blocks = Array.isArray(ev.blocks) ? ev.blocks : [];
   let best = '';
   for (const b of blocks) {
@@ -284,7 +445,25 @@ function extractAnswer(ev) {
     }
   }
   if (best) return best;
-  // fallback: plan FINAL step
+
+  // Progressive stream: only `chunks` until COMPLETED
+  if (chunkParts) {
+    const fromChunks = applyMarkdownChunks(ev, chunkParts);
+    if (fromChunks) return fromChunks;
+  } else {
+    // stateless fallback: join chunks on this event only (may be partial)
+    for (const b of blocks) {
+      const md = b?.markdown_block;
+      const chunks = md?.chunks;
+      if (Array.isArray(chunks) && chunks.length) {
+        const joined = chunks.map((c) => (typeof c === 'string' ? c : '')).join('');
+        if (joined.length > best.length) best = joined;
+      }
+    }
+    if (best) return best;
+  }
+
+  // fallback: plan FINAL step embedded in text JSON
   if (typeof ev.text === 'string' && ev.text.includes('"answer"')) {
     try {
       const arr = JSON.parse(ev.text);
@@ -333,29 +512,63 @@ function toChatCompletion(answer, model) {
 
 /**
  * Convert Perplexity SSE → OpenAI chat.completions SSE.
+ * Emits progressive `delta.content` from markdown `chunks` (not only final `answer`).
  * @param {Response} upstream
  * @param {string} model
  */
 function streamOpenAiFromPplxSse(upstream, model) {
   const id = `chatcmpl_pplx_${Date.now()}`;
+  const created = Math.floor(Date.now() / 1000);
   const encoder = new TextEncoder();
   let sentRole = false;
   let lastLen = 0;
+  /** @type {string[]} progressive chunk index assembly */
+  const chunkParts = [];
+  /** @type {string | null} */
+  let failReason = null;
 
   const body = new ReadableStream({
     async start(controller) {
-      const push = (obj) => {
+      /**
+       * Match xAI/OpenAI chat.completion.chunk shape closely.
+       * Omit finish_reason until the terminal chunk (null fields break some strict deserializers).
+       * @param {Record<string, any>} delta
+       * @param {string | undefined} [finishReason]
+       */
+      const pushChunk = (delta, finishReason) => {
+        /** @type {any} */
+        const choice = { index: 0, delta };
+        if (finishReason !== undefined) choice.finish_reason = finishReason;
+        const obj = {
+          id,
+          object: 'chat.completion.chunk',
+          created,
+          model,
+          choices: [choice],
+        };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+      };
+      const ensureRole = () => {
+        if (sentRole) return;
+        pushChunk({ role: 'assistant' });
+        sentRole = true;
+      };
+      const emitAnswer = (answer) => {
+        if (!answer) return;
+        ensureRole();
+        if (answer.length > lastLen) {
+          const delta = answer.slice(lastLen);
+          lastLen = answer.length;
+          pushChunk({ content: delta });
+        } else if (answer.length < lastLen) {
+          lastLen = answer.length;
+          pushChunk({ content: answer });
+        }
       };
       try {
         if (!upstream.body) {
-          push({
-            id,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model,
-            choices: [{ index: 0, delta: { content: '' }, finish_reason: 'stop' }],
-          });
+          ensureRole();
+          pushChunk({}, 'stop');
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
           return;
@@ -381,42 +594,43 @@ function streamOpenAiFromPplxSse(upstream, model) {
             } catch {
               continue;
             }
-            const answer = extractAnswer(ev);
-            if (!answer) continue;
-            if (!sentRole) {
-              push({
-                id,
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model,
-                choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }],
-              });
-              sentRole = true;
+            if (ev?.status === 'FAILED') {
+              failReason =
+                (typeof ev.text === 'string' && ev.text) ||
+                ev?.error?.message ||
+                'Error in processing query.';
+              continue;
             }
-            if (answer.length > lastLen) {
-              const delta = answer.slice(lastLen);
-              lastLen = answer.length;
-              push({
-                id,
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model,
-                choices: [{ index: 0, delta: { content: delta }, finish_reason: null }],
-              });
-            }
-            if (ev.final || ev.status === 'COMPLETED') {
-              // keep reading until stream ends
+            emitAnswer(extractAnswer(ev, chunkParts));
+          }
+        }
+        if (buf.startsWith('data:')) {
+          const raw = buf.slice(5).trim();
+          if (raw && raw !== '[DONE]') {
+            try {
+              const ev = JSON.parse(raw);
+              if (ev?.status === 'FAILED') {
+                failReason =
+                  (typeof ev.text === 'string' && ev.text) ||
+                  'Error in processing query.';
+              } else {
+                emitAnswer(extractAnswer(ev, chunkParts));
+              }
+            } catch {
+              /* ignore */
             }
           }
         }
 
-        push({
-          id,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model,
-          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
-        });
+        ensureRole();
+        if (lastLen === 0) {
+          const msg = failReason
+            ? `(Perplexity failed: ${failReason})`
+            : '(Perplexity returned no text for this query. Try again or switch model.)';
+          pushChunk({ content: msg });
+          lastLen = 1;
+        }
+        pushChunk({}, 'stop');
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       } catch (err) {
@@ -432,7 +646,7 @@ function streamOpenAiFromPplxSse(upstream, model) {
   return new Response(body, {
     status: 200,
     headers: {
-      'Content-Type': 'text/event-stream',
+      'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     },
