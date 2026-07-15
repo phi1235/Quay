@@ -31,7 +31,7 @@ const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
 /** @typedef {{
  *  id: string,
- *  provider: 'codex' | 'grok',
+ *  provider: 'codex' | 'grok' | 'perplexity',
  *  email: string,
  *  accessToken: string,
  *  refreshToken?: string | null,
@@ -63,8 +63,15 @@ const STATE_FILE = path.join(DATA_DIR, 'state.json');
  *  rrIndex: number,
  *  accounts: Account[],
  *  poolAccountIds: string[],
- *  pinnedByProvider?: { codex?: string | null, grok?: string | null },
+ *  pinnedByProvider?: { codex?: string | null, grok?: string | null, perplexity?: string | null },
  * }} State */
+
+/** @param {string | null | undefined} p */
+export function normalizeProvider(p) {
+  if (p === 'grok') return 'grok';
+  if (p === 'perplexity' || p === 'pplx') return 'perplexity';
+  return 'codex';
+}
 
 /** @type {State | null} */
 let memoryState = null;
@@ -90,7 +97,7 @@ function defaultState() {
     rrIndex: 0,
     accounts: [],
     poolAccountIds: [],
-    pinnedByProvider: { codex: null, grok: null },
+    pinnedByProvider: { codex: null, grok: null, perplexity: null },
   };
 }
 
@@ -140,14 +147,15 @@ export function loadState() {
   const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
   const accounts = (Array.isArray(raw.accounts) ? raw.accounts : []).map((a) => ({
     ...a,
-    provider: a.provider === 'grok' ? 'grok' : 'codex',
+    provider: normalizeProvider(a.provider),
   }));
   const pinned = raw.pinnedByProvider && typeof raw.pinnedByProvider === 'object'
     ? {
         codex: raw.pinnedByProvider.codex || null,
         grok: raw.pinnedByProvider.grok || null,
+        perplexity: raw.pinnedByProvider.perplexity || null,
       }
-    : { codex: null, grok: null };
+    : { codex: null, grok: null, perplexity: null };
   memoryState = {
     ...defaultState(),
     ...raw,
@@ -179,11 +187,11 @@ export function upsertAccount(input) {
   const accessToken = String(input.accessToken || '').trim();
   if (!accessToken) throw new Error('accessToken is required');
 
-  const provider = input.provider === 'grok' ? 'grok' : 'codex';
+  const provider = normalizeProvider(input.provider);
 
   const email =
     String(input.email || '').trim() ||
-    guessEmailFromJwt(accessToken) ||
+    (provider === 'perplexity' ? '' : guessEmailFromJwt(accessToken)) ||
     `${provider}-${fingerprint(accessToken)}`;
 
   const accountId =
@@ -191,11 +199,13 @@ export function upsertAccount(input) {
     (provider === 'codex' ? guessAccountIdFromJwt(accessToken) : null) ||
     null;
 
-  const userId = input.userId ?? guessUserIdFromJwt(accessToken);
+  const userId =
+    input.userId ??
+    (provider === 'perplexity' ? null : guessUserIdFromJwt(accessToken));
 
   const existing =
     state.accounts.find((a) => {
-      const ap = a.provider === 'grok' ? 'grok' : 'codex';
+      const ap = normalizeProvider(a.provider);
       if (ap !== provider) return false;
       if (a.accessToken === accessToken) return true;
       if (userId && a.userId && a.userId === userId) return true;
@@ -205,6 +215,15 @@ export function upsertAccount(input) {
     }) || null;
 
   const now = new Date().toISOString();
+  const defaultPlan =
+    provider === 'grok'
+      ? 'grok'
+      : provider === 'perplexity'
+        ? 'perplexity'
+        : guessPlanFromJwt(accessToken) || 'unknown';
+  const defaultExp =
+    provider === 'perplexity' ? input.expiresAt ?? null : jwtExpIso(accessToken);
+
   if (existing) {
     existing.provider = provider;
     existing.accessToken = accessToken;
@@ -214,7 +233,7 @@ export function upsertAccount(input) {
     existing.userId = userId ?? existing.userId;
     existing.planType =
       input.planType != null ? String(input.planType) : existing.planType;
-    existing.expiresAt = input.expiresAt ?? existing.expiresAt ?? jwtExpIso(accessToken);
+    existing.expiresAt = input.expiresAt ?? existing.expiresAt ?? defaultExp;
     existing.enabled = input.enabled ?? existing.enabled;
     existing.source = input.source ?? existing.source;
     existing.oidcClientId = input.oidcClientId ?? existing.oidcClientId ?? null;
@@ -236,11 +255,8 @@ export function upsertAccount(input) {
     refreshToken: input.refreshToken ?? null,
     accountId,
     userId: userId ?? null,
-    planType: String(
-      input.planType ??
-        (provider === 'grok' ? 'grok' : guessPlanFromJwt(accessToken) || 'unknown'),
-    ),
-    expiresAt: input.expiresAt ?? jwtExpIso(accessToken),
+    planType: String(input.planType ?? defaultPlan),
+    expiresAt: input.expiresAt ?? defaultExp,
     enabled: input.enabled ?? true,
     createdAt: now,
     lastUsedAt: null,
@@ -288,8 +304,10 @@ export function setAccountPin(accountId, pin = true) {
   const state = loadState();
   const acc = state.accounts.find((a) => a.id === accountId);
   if (!acc) throw new Error(`Account not found: ${accountId}`);
-  const provider = acc.provider === 'grok' ? 'grok' : 'codex';
-  if (!state.pinnedByProvider) state.pinnedByProvider = { codex: null, grok: null };
+  const provider = normalizeProvider(acc.provider);
+  if (!state.pinnedByProvider) {
+    state.pinnedByProvider = { codex: null, grok: null, perplexity: null };
+  }
 
   if (!pin) {
     if (state.pinnedByProvider[provider] === accountId) {
@@ -315,7 +333,7 @@ export function setAccountPin(accountId, pin = true) {
 /** @param {State} state @param {string} accountId */
 function clearPinIfMatch(state, accountId) {
   if (!state.pinnedByProvider) return;
-  for (const p of /** @type {const} */ (['codex', 'grok'])) {
+  for (const p of /** @type {const} */ (['codex', 'grok', 'perplexity'])) {
     if (state.pinnedByProvider[p] === accountId) state.pinnedByProvider[p] = null;
   }
 }
@@ -333,14 +351,14 @@ export function listPoolAccounts() {
 }
 
 /**
- * @param {{ stickyKey?: string | null, excludeIds?: Set<string>, provider?: 'codex' | 'grok' | null }} [opts]
+ * @param {{ stickyKey?: string | null, excludeIds?: Set<string>, provider?: 'codex' | 'grok' | 'perplexity' | null }} [opts]
  * @returns {Account | null}
  */
 export function pickAccount(opts = {}) {
   const exclude = opts.excludeIds || new Set();
   let pool = listPoolAccounts().filter((a) => !exclude.has(a.id));
   if (opts.provider) {
-    pool = pool.filter((a) => (a.provider || 'codex') === opts.provider);
+    pool = pool.filter((a) => normalizeProvider(a.provider) === opts.provider);
   }
   if (pool.length === 0) return null;
 
@@ -381,12 +399,9 @@ export function pickAccount(opts = {}) {
  * @param {string | null | undefined} provider
  */
 function pickPinnedOrFirst(pool, state, provider) {
-  const prov =
-    provider === 'grok' || provider === 'codex'
-      ? provider
-      : pool[0]?.provider === 'grok'
-        ? 'grok'
-        : 'codex';
+  const prov = provider
+    ? normalizeProvider(provider)
+    : normalizeProvider(pool[0]?.provider);
   const pinnedId = state.pinnedByProvider?.[prov];
   if (pinnedId) {
     const hit = pool.find((a) => a.id === pinnedId);
@@ -474,9 +489,15 @@ export function setPort(port) {
 export function publicAccount(a, poolIds) {
   const token = a.accessToken || '';
   const now = Date.now();
-  const provider = a.provider === 'grok' ? 'grok' : 'codex';
+  const provider = normalizeProvider(a.provider);
   const state = loadState();
   const pinnedId = state.pinnedByProvider?.[provider] || null;
+  const preview =
+    provider === 'perplexity'
+      ? `cookies…(len=${token.length})`
+      : token
+        ? `${token.slice(0, 12)}…${token.slice(-8)} (len=${token.length})`
+        : null;
   return {
     id: a.id,
     provider,
@@ -497,9 +518,7 @@ export function publicAccount(a, poolIds) {
     expired: isExpired(a),
     coolingDown: Boolean(a.cooldownUntil && a.cooldownUntil > now),
     cooldownUntil: a.cooldownUntil || null,
-    tokenPreview: token
-      ? `${token.slice(0, 12)}…${token.slice(-8)} (len=${token.length})`
-      : null,
+    tokenPreview: preview,
     quota: a.quota || null,
     quotaUpdatedAt: a.quotaUpdatedAt || null,
     quotaError: a.quotaError || null,
@@ -517,8 +536,10 @@ export function publicStatus() {
     routing: state.routing,
     accountsTotal: state.accounts.length,
     poolSize: state.poolAccountIds.length,
-    poolCodex: pool.filter((a) => (a.provider || 'codex') === 'codex').length,
-    poolGrok: pool.filter((a) => a.provider === 'grok').length,
+    poolCodex: pool.filter((a) => normalizeProvider(a.provider) === 'codex').length,
+    poolGrok: pool.filter((a) => normalizeProvider(a.provider) === 'grok').length,
+    poolPerplexity: pool.filter((a) => normalizeProvider(a.provider) === 'perplexity')
+      .length,
     baseUrl: `http://${state.host}:${state.port}/v1`,
     uiUrl: `http://${state.host}:${state.port}/`,
     dataDir: DATA_DIR,

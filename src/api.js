@@ -15,6 +15,8 @@ import {
   publicAccount,
   saveAccountQuota,
   saveAccountQuotaError,
+  normalizeProvider,
+  patchAccount,
 } from './store.js';
 import { importTokenInput } from './import-json.js';
 import {
@@ -24,6 +26,11 @@ import {
   defaultGrokAuthPath,
   vaultStats,
 } from './import-grok.js';
+import {
+  importPerplexityFromText,
+  looksLikePerplexityCookies,
+  refreshPerplexityProfile,
+} from './import-perplexity.js';
 import { startGrokDeviceLogin, getGrokLoginStatus } from './grok-login.js';
 import { applyCodexConfig, printEnvExport } from './apply-codex.js';
 import { applyGrokConfig, printGrokEnvExport } from './apply-grok.js';
@@ -63,7 +70,7 @@ export function mountAdminApi(app) {
     });
   });
 
-  /** Import from pasted JSON — auto-detect Grok auth vs Codex token */
+  /** Import from pasted JSON — auto-detect Grok / Perplexity cookies / Codex token */
   app.post('/api/import', async (req, res) => {
     try {
       const text = req.body?.text ?? req.body?.json ?? '';
@@ -81,9 +88,21 @@ export function mountAdminApi(app) {
         if (looksLikeGrokAuth(parsed)) {
           imported = importGrokFromText(String(text));
           provider = 'grok';
+        } else if (looksLikePerplexityCookies(parsed)) {
+          imported = await importPerplexityFromText(String(text));
+          provider = 'perplexity';
         }
-      } catch {
+      } catch (err) {
+        // rethrow if already recognized as pplx parse error
+        if (err instanceof Error && /Perplexity|cookie/i.test(err.message)) {
+          throw err;
+        }
         /* not JSON / not grok — fall through */
+      }
+      // raw cookie header string
+      if (!imported && looksLikePerplexityCookies(String(text))) {
+        imported = await importPerplexityFromText(String(text));
+        provider = 'perplexity';
       }
       if (!imported) {
         imported = importTokenInput(String(text));
@@ -96,7 +115,7 @@ export function mountAdminApi(app) {
       for (const a of imported) {
         try {
           const full = loadState().accounts.find((x) => x.id === a.id);
-          if (!full || full.provider === 'grok') continue;
+          if (!full || normalizeProvider(full.provider) !== 'codex') continue;
           const quota = await fetchAccountQuota(full);
           saveAccountQuota(full.id, quota);
         } catch (err) {
@@ -305,9 +324,29 @@ export function mountAdminApi(app) {
         res.status(404).json({ error: 'Không tìm thấy account' });
         return;
       }
-      if (acc.provider === 'grok') {
+      const prov = normalizeProvider(acc.provider);
+      if (prov === 'grok') {
         res.status(400).json({
           error: 'Quota web SuperGrok chưa hỗ trợ API — xem usage trên grok.com',
+        });
+        return;
+      }
+      if (prov === 'perplexity') {
+        const profile = await refreshPerplexityProfile(acc);
+        patchAccount(acc.id, {
+          email: profile.email || acc.email,
+          userId: profile.userId || acc.userId,
+          planType: profile.planType || acc.planType,
+          expiresAt: profile.expiresAt || acc.expiresAt,
+          lastError: null,
+        });
+        res.json({
+          ok: true,
+          account: publicAccount(
+            loadState().accounts.find((a) => a.id === acc.id),
+            loadState().poolAccountIds,
+          ),
+          profile,
         });
         return;
       }
@@ -335,13 +374,31 @@ export function mountAdminApi(app) {
 
     const results = [];
     for (const acc of targets) {
-      if (acc.provider === 'grok') {
+      const prov = normalizeProvider(acc.provider);
+      if (prov === 'grok') {
         results.push({
           id: acc.id,
           ok: false,
           skipped: true,
           error: 'Grok: xem usage trên grok.com',
         });
+        continue;
+      }
+      if (prov === 'perplexity') {
+        try {
+          const profile = await refreshPerplexityProfile(acc);
+          patchAccount(acc.id, {
+            email: profile.email || acc.email,
+            userId: profile.userId || acc.userId,
+            planType: profile.planType || acc.planType,
+            expiresAt: profile.expiresAt || acc.expiresAt,
+            lastError: null,
+          });
+          results.push({ id: acc.id, ok: true, profile });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          results.push({ id: acc.id, ok: false, error: msg });
+        }
         continue;
       }
       try {
