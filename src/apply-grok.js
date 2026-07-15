@@ -98,6 +98,25 @@ const MODELS = [
     name: 'Quay · PPLX · Nemotron 3 Ultra',
     description: 'Nemotron 3 Ultra on Perplexity (Pro)',
   },
+  // --- ChatGPT web chat (same codex JWT pool; free plan works) ---
+  {
+    slug: 'quay-chatgpt',
+    model: 'chatgpt-web',
+    name: 'Quay · ChatGPT Web',
+    description: 'ChatGPT browser chat via Quay (free OK)',
+  },
+  {
+    slug: 'quay-chatgpt-mini',
+    model: 'chatgpt-web-mini',
+    name: 'Quay · ChatGPT Web Mini',
+    description: 'ChatGPT web gpt-5-mini via Quay',
+  },
+  {
+    slug: 'quay-chatgpt-53',
+    model: 'chatgpt-web-5.3',
+    name: 'Quay · ChatGPT Web 5.3',
+    description: 'ChatGPT web gpt-5-3 via Quay',
+  },
 ];
 
 /**
@@ -133,7 +152,7 @@ export function applyGrokConfig(opts = {}) {
     models: MODELS.map((m) => m.slug),
     defaultModel: opts.setDefault !== false ? 'quay-grok-build' : null,
     note:
-      'Grok CLI: /model quay-grok-build | quay-grok-45 | quay-pplx-pro | quay-pplx-sonar | quay-pplx-terra | quay-pplx-claude | …. Restart grok CLI.',
+      'Grok CLI: /model quay-grok-build | quay-chatgpt | quay-pplx-pro | …. Restart grok CLI.',
   };
 }
 

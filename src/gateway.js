@@ -9,6 +9,7 @@ import {
   poolSnapshotForProvider,
   touchAccount,
   cooldownAccount,
+  clearAccountCooldown,
   normalizeProvider,
 } from './store.js';
 import {
@@ -32,6 +33,12 @@ import {
   perplexityBodyToChatCompletions,
   resolvePerplexityModel,
 } from './upstream-perplexity.js';
+import {
+  upstreamChatgptWebChat,
+  chatgptWebBodyToChatCompletions,
+  isChatgptWebModel,
+  resolveChatgptWebModel,
+} from './upstream-chatgpt-web.js';
 import { pushRequestLog } from './request-log.js';
 import { mountAdminApi } from './api.js';
 
@@ -163,7 +170,22 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
   const stickyKey = stickyKeyFrom(req, body);
   const provider = opts.provider || inferProvider(body.model, req);
   const exclude = new Set();
-  const snap = poolSnapshotForProvider(provider);
+  let snap = poolSnapshotForProvider(provider);
+  // ChatGPT web works on free tokens that 401 on Codex agent. If the only
+  // codex account is cooling from a prior Codex Unauthorized, clear and retry
+  // so /model quay-chatgpt is not blocked by a failed gpt-*-codex attempt.
+  if (
+    isChatgptWebModel(body?.model) &&
+    snap.available.length === 0 &&
+    snap.cooling.length > 0
+  ) {
+    for (const a of snap.cooling) {
+      if (/Unauthorized|401|không có quyền Codex/i.test(String(a.lastError || ''))) {
+        clearAccountCooldown(a.id);
+      }
+    }
+    snap = poolSnapshotForProvider(provider);
+  }
   const providerPool = snap.available;
   // Only iterate available accounts; if all are cooling, fail fast with a clear message
   const poolSize = Math.max(providerPool.length, 0);
@@ -207,7 +229,9 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
           ? resolveGrokModel(reqModel)
           : accProvider === 'perplexity'
             ? resolvePerplexityModel(reqModel)
-            : reqModel || null,
+            : isChatgptWebModel(reqModel)
+              ? resolveChatgptWebModel(reqModel)
+              : reqModel || null,
       // Log client path (chat vs responses) — upstreamPath is often "/responses" for both
       path: opts.asChatCompletions
         ? '/chat/completions'
@@ -269,6 +293,31 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
               `[gateway] perplexity account=${account.email} ${msg} → retry once`,
             );
             upstream = await upstreamPerplexityChat(account, chatBody, {
+              stream: Boolean(chatBody.stream),
+            });
+          } else {
+            throw netErr;
+          }
+        }
+        upstreamKind = 'chat';
+      } else if (isChatgptWebModel(reqModel) || opts.chatgptWeb) {
+        // ChatGPT browser conversation (works on free) — same codex JWT pool
+        const chatBody =
+          opts.asChatCompletions || upstreamPath.includes('chat')
+            ? { ...body, stream }
+            : chatgptWebBodyToChatCompletions({ ...mapBody(body), stream });
+        if (opts.forceNoStream) chatBody.stream = false;
+        try {
+          upstream = await upstreamChatgptWebChat(account, chatBody, {
+            stream: Boolean(chatBody.stream),
+          });
+        } catch (netErr) {
+          const msg = netErr instanceof Error ? netErr.message : String(netErr);
+          if (/fetch failed|ECONNRESET|ETIMEDOUT|network/i.test(msg) && attempt === 0) {
+            console.warn(
+              `[gateway] chatgpt-web account=${account.email} ${msg} → retry once`,
+            );
+            upstream = await upstreamChatgptWebChat(account, chatBody, {
               stream: Boolean(chatBody.stream),
             });
           } else {
@@ -359,9 +408,13 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
         return;
       }
 
-      // /v1/responses client hitting Grok/Perplexity (chat upstream) → reshape to Responses API
+      // /v1/responses client hitting chat-shaped upstream → reshape to Responses API
+      // (Grok CLI uses /responses; Grok/PPLX/ChatGPT-web all return chat.completions)
       if (
-        (accProvider === 'grok' || accProvider === 'perplexity') &&
+        (accProvider === 'grok' ||
+          accProvider === 'perplexity' ||
+          isChatgptWebModel(reqModel) ||
+          opts.chatgptWeb) &&
         !opts.asChatCompletions &&
         upstreamPath.includes('responses')
       ) {

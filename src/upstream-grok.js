@@ -525,7 +525,10 @@ export function inferProvider(model, req) {
   const h = String(header).toLowerCase().trim();
   if (h === 'grok' || h === 'xai') return 'grok';
   if (h === 'perplexity' || h === 'pplx') return 'perplexity';
-  if (h === 'codex' || h === 'openai' || h === 'chatgpt') return 'codex';
+  // chatgpt-web still uses the codex (ChatGPT JWT) pool
+  if (h === 'codex' || h === 'openai' || h === 'chatgpt' || h === 'chatgpt-web') {
+    return 'codex';
+  }
 
   const m = String(model || '').toLowerCase();
   // Grok CLI slugs for Perplexity (quay-pplx-*) — must check before quay-grok
@@ -545,5 +548,6 @@ export function inferProvider(model, req) {
   ) {
     return 'grok';
   }
+  // chatgpt-web / quay-chatgpt-* → same codex account pool (web path chosen in gateway)
   return 'codex';
 }
