@@ -108,7 +108,7 @@
             <button type="button" class="btn ghost" id="btnImportGrok" data-tip="Mở login Grok mới (popup) — không đổi acc CLI/web đang dùng">
               + Grok
             </button>
-            <button type="button" class="btn primary" id="btnOpenImport" data-tip="Import Codex token JSON">
+            <button type="button" class="btn primary" id="btnOpenImport" data-tip="Import Codex token / Grok auth / Perplexity cookies">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="btn-ico"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
               Thêm JSON
             </button>
@@ -294,17 +294,22 @@
                 <div class="provider-mark is-grok" aria-hidden="true">G</div>
                 <div class="provider-meta">
                   <div class="provider-name">Grok CLI</div>
-                  <div class="provider-path mono">~/.grok/config.toml</div>
+                  <div class="provider-path mono">~/.grok/config.toml · client chung</div>
                 </div>
                 <div class="provider-tags">
                   <span class="chip grok">pool grok</span>
+                  <span class="chip pplx">pool pplx</span>
                 </div>
-                <button type="button" class="btn primary sm" id="btnApplyGrok" data-tip="Ghi model Quay vào Grok CLI">
+                <button type="button" class="btn primary sm" id="btnApplyGrok" data-tip="Ghi model Quay (Grok + Perplexity) vào Grok CLI">
                   Áp dụng
                 </button>
               </article>
-              <!-- Provider mới: thêm 1 .provider-row -->
+              <!-- Perplexity không có CLI riêng — models quay-pplx-* nằm trong Grok CLI -->
             </div>
+            <p class="hint wide" style="margin-top:12px">
+              Perplexity không có CLI: import cookie → pool → <b>Áp dụng Grok CLI</b> →
+              trong <code>grok</code> chọn <code>/model quay-pplx-pro</code> (hoặc turbo / sonar / …).
+            </p>
           </div>
 
           <div class="card-block">
@@ -314,7 +319,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
               </button>
             </div>
-            <p class="hint wide" style="margin-top:0">Mọi client dùng Base URL + key local (Cursor, SDK, …). Model <code>grok-*</code> → pool Grok; còn lại → pool Codex.</p>
+            <p class="hint wide" style="margin-top:0">Mọi client dùng Base URL + key local (Cursor, SDK, …). Model <code>grok-*</code> → pool Grok; <code>pplx-*</code> / <code>sonar</code> → pool Perplexity; còn lại → pool Codex.</p>
             <pre id="envBox" class="code compact"></pre>
           </div>
           <p class="hint mono" id="dataDir" hidden>—</p>
@@ -369,11 +374,11 @@
           </button>
         </div>
         <p class="hint wide">
-          Codex JSON hoặc dán <code>~/.grok/auth.json</code>. Nhiều Grok:
-          <b>grok login</b> từng acc → <b>+ Grok</b> (vault giữ tất cả).
+          Codex token, Grok <code>auth.json</code>, hoặc <b>Perplexity cookie export</b>
+          (array cookie từ EditThisCookie / browser). Nhiều Grok: <b>+ Grok</b>.
         </p>
         <input type="file" id="fileInput" accept=".json,application/json,text/plain" />
-        <textarea id="importText" class="input area mono" placeholder='Codex token JSON hoặc Grok auth.json…'></textarea>
+        <textarea id="importText" class="input area mono" placeholder='Codex token · Grok auth.json · Perplexity cookies JSON…'></textarea>
         <label class="check">
           <input type="checkbox" id="autoPool" checked />
           Tự thêm vào pool API sau khi import

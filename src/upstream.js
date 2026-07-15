@@ -149,7 +149,7 @@ export function responsesToChatCompletion(respJson, model) {
 }
 
 export function defaultModels() {
-  // Codex / ChatGPT session models + Grok (xAI OIDC)
+  // Codex / ChatGPT session models + Grok (xAI OIDC) + Perplexity (cookie session)
   const codex = [
     'gpt-5.6-sol',
     'gpt-5.5',
@@ -169,9 +169,19 @@ export function defaultModels() {
     owned_by: 'xai',
   }));
 
+  const pplx = [
+    'pplx-pro',
+    'pplx-turbo',
+    'pplx-sonar',
+    'pplx-grok',
+    'pplx-claude-sonnet',
+    'pplx-gemini',
+    'sonar',
+  ].map((id) => ({ id, object: 'model', created: 0, owned_by: 'perplexity' }));
+
   return {
     object: 'list',
-    data: [...codex, ...grok],
+    data: [...codex, ...grok, ...pplx],
   };
 }
 

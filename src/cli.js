@@ -10,8 +10,18 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
 import { importTokenInput } from './import-json.js';
-import { importGrokLogin, defaultGrokAuthPath } from './import-grok.js';
+import {
+  importGrokLogin,
+  importGrokFromText,
+  looksLikeGrokAuth,
+  defaultGrokAuthPath,
+} from './import-grok.js';
+import {
+  importPerplexityFromText,
+  looksLikePerplexityCookies,
+} from './import-perplexity.js';
 import {
   loadState,
   saveState,
@@ -89,7 +99,7 @@ Usage:
   npx ${PKG.name || '@phi1235/quay'} <command>
 
 Commands:
-  import <file.json>       Import Codex/ChatGPT token JSON
+  import <file.json>       Import Codex token / Grok auth / Perplexity cookies
   import-grok [auth.json]  Import from grok login (~/.grok/auth.json)
   list                     List imported accounts
   pool-add <id|all>        Add account(s) to API service pool
@@ -118,6 +128,12 @@ Typical flow (Grok — nhiều account):
   Cũng có thể: cp ~/.grok/auth.json ./a.json  (mỗi acc 1 file) rồi
   quay import-grok ./a.json && quay import-grok ./b.json
 
+Typical flow (Perplexity — cookie export):
+  1. Export cookies từ www.perplexity.ai (EditThisCookie / …)
+  2. quay import cookies.json   # auto-detect
+  3. quay pool-add all && quay start
+  # model: pplx-pro | pplx-turbo | pplx-sonar | pplx-grok | …
+
 Data dir: ${DATA_DIR}
 `);
 }
@@ -138,14 +154,31 @@ function cmdImportGrok(argv) {
   console.log('Models: grok-4.5 | grok-build');
 }
 
-function cmdImport(argv) {
+async function cmdImport(argv) {
   const file = argv[0];
   if (!file) {
     console.error('Usage: import <file.json>');
     process.exit(1);
   }
   const abs = path.resolve(file);
-  const accounts = importTokenInput(abs, { isPath: true });
+  const text = fs.readFileSync(abs, 'utf8');
+  let accounts;
+  try {
+    const parsed = JSON.parse(text);
+    if (looksLikeGrokAuth(parsed)) {
+      accounts = importGrokFromText(text);
+    } else if (looksLikePerplexityCookies(parsed)) {
+      accounts = await importPerplexityFromText(text);
+    }
+  } catch {
+    /* fall through */
+  }
+  if (!accounts && looksLikePerplexityCookies(text)) {
+    accounts = await importPerplexityFromText(text);
+  }
+  if (!accounts) {
+    accounts = importTokenInput(abs, { isPath: true });
+  }
   console.log(`Imported ${accounts.length} account(s):`);
   for (const a of accounts) {
     console.log(
@@ -289,7 +322,12 @@ function cmdApplyGrok(argv) {
   console.log(JSON.stringify(result, null, 2));
   console.log('\nStart gateway if not running: node src/cli.js start');
   console.log('Then run: grok');
-  console.log('Models in picker: Quay · Grok Build / Quay · Grok 4.5');
+  console.log('Models:');
+  console.log('  Grok pool:        quay-grok-build | quay-grok-45');
+  console.log(
+    '  Perplexity pool:  quay-pplx-pro | quay-pplx-turbo | quay-pplx-sonar | quay-pplx-grok | …',
+  );
+  console.log('(Perplexity không có CLI riêng — dùng Grok CLI làm client.)');
 }
 
 main().catch((err) => {

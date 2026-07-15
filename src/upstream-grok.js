@@ -276,9 +276,20 @@ export function inferProvider(model, req) {
     '';
   const h = String(header).toLowerCase().trim();
   if (h === 'grok' || h === 'xai') return 'grok';
+  if (h === 'perplexity' || h === 'pplx') return 'perplexity';
   if (h === 'codex' || h === 'openai' || h === 'chatgpt') return 'codex';
 
   const m = String(model || '').toLowerCase();
+  // Grok CLI slugs for Perplexity (quay-pplx-*) — must check before quay-grok
+  if (
+    m.startsWith('pplx') ||
+    m.startsWith('perplexity') ||
+    m.startsWith('quay-pplx') ||
+    m === 'sonar' ||
+    m.startsWith('sonar-')
+  ) {
+    return 'perplexity';
+  }
   if (
     m.startsWith('grok') ||
     m.includes('grok-') ||

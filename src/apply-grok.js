@@ -1,6 +1,9 @@
 /**
  * Point Grok CLI at Quay (OpenAI-compatible local gateway).
  *
+ * Providers without a native CLI (e.g. Perplexity) are also registered here so
+ * you can pick them inside Grok CLI: /model quay-pplx-pro, …
+ *
  * IMPORTANT: TOML table keys must NOT use bare dots in the model id.
  *   BAD:  [model.quay-grok-4.5]  → parsed as nested quay-grok-4 / 5 → CLI
  *         sends model "quay-grok-4" to cli-chat-proxy.grok.com (404)
@@ -16,19 +19,60 @@ function grokHome() {
   return process.env.GROK_HOME || path.join(os.homedir(), '.grok');
 }
 
-/** Slugs without dots (TOML-safe) */
+/**
+ * Slugs without dots (TOML-safe).
+ * `model` is the id Quay receives and uses for routing (inferProvider).
+ */
 const MODELS = [
+  // --- Grok pool ---
   {
     slug: 'quay-grok-build',
     model: 'grok-build',
     name: 'Quay · Grok Build',
-    description: 'Coding via Quay multi-account pool',
+    description: 'Coding via Quay Grok pool',
   },
   {
     slug: 'quay-grok-45',
     model: 'grok-4.5',
     name: 'Quay · Grok 4.5',
-    description: 'Chat via Quay multi-account pool',
+    description: 'Chat via Quay Grok pool',
+  },
+  // --- Perplexity pool (no native CLI — use Grok CLI as client) ---
+  {
+    slug: 'quay-pplx-pro',
+    model: 'pplx-pro',
+    name: 'Quay · Perplexity Pro',
+    description: 'Perplexity Best/Pro via Quay cookie pool',
+  },
+  {
+    slug: 'quay-pplx-turbo',
+    model: 'pplx-turbo',
+    name: 'Quay · Perplexity Turbo',
+    description: 'Perplexity Sonar/Turbo via Quay',
+  },
+  {
+    slug: 'quay-pplx-sonar',
+    model: 'pplx-sonar',
+    name: 'Quay · Perplexity Sonar',
+    description: 'Perplexity Sonar search via Quay',
+  },
+  {
+    slug: 'quay-pplx-grok',
+    model: 'pplx-grok',
+    name: 'Quay · PPLX · Grok',
+    description: 'Grok model on Perplexity via Quay cookies',
+  },
+  {
+    slug: 'quay-pplx-claude',
+    model: 'pplx-claude-sonnet',
+    name: 'Quay · PPLX · Claude Sonnet',
+    description: 'Claude Sonnet on Perplexity via Quay',
+  },
+  {
+    slug: 'quay-pplx-gemini',
+    model: 'pplx-gemini',
+    name: 'Quay · PPLX · Gemini',
+    description: 'Gemini on Perplexity via Quay',
   },
 ];
 
@@ -64,7 +108,8 @@ export function applyGrokConfig(opts = {}) {
     apiKey,
     models: MODELS.map((m) => m.slug),
     defaultModel: opts.setDefault !== false ? 'quay-grok-build' : null,
-    note: 'Chọn model Quay · Grok Build / Quay · Grok 4.5 (slug quay-grok-build | quay-grok-45). Restart grok CLI.',
+    note:
+      'Grok CLI: /model quay-grok-build | quay-grok-45 | quay-pplx-pro | quay-pplx-turbo | …. Restart grok CLI.',
   };
 }
 
@@ -122,7 +167,7 @@ function mergeGrokConfigToml(existing, { baseUrl, apiKey, setDefault }) {
 }
 
 /**
- * Drop managed section + any leftover broken quay-grok-* tables
+ * Drop managed section + any leftover broken quay-* model tables
  * @param {string} text
  */
 function stripQuayManaged(text) {
@@ -143,8 +188,10 @@ function stripQuayManaged(text) {
     // table header
     if (t.startsWith('[') && t.endsWith(']')) {
       const isQuayModel =
-        /^\[model\.quay[-_]|model\."quay|model\.quay-grok/i.test(t) ||
+        /^\[model\.quay[-_]/i.test(t) ||
+        /^\[model\."quay/i.test(t) ||
         t.startsWith('[model.quay-grok') ||
+        t.startsWith('[model.quay-pplx') ||
         t === '[model.quay]';
       if (isQuayModel || skipping) {
         // starting a quay table — skip until next non-quay table or end of quay block
@@ -171,6 +218,13 @@ export function printGrokEnvExport() {
     `# OpenAI-compatible clients → Quay`,
     `export OPENAI_BASE_URL="${baseUrl}"`,
     `export OPENAI_API_KEY="${state.localApiKey}"`,
-    `# Grok CLI: /model quay-grok-build  OR  quay-grok-45  (not bare grok-4.5)`,
+    `# Grok CLI models (via Quay):`,
+    `#   quay-grok-build | quay-grok-45`,
+    `#   quay-pplx-pro | quay-pplx-turbo | quay-pplx-sonar | quay-pplx-grok | …`,
   ].join('\n');
+}
+
+/** @returns {typeof MODELS} */
+export function listGrokCliModels() {
+  return MODELS.slice();
 }

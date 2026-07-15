@@ -82,6 +82,12 @@ quay start
 quay apply-grok
 eval "$(quay env)"
 # models: quay-grok-build | quay-grok-45
+
+# Perplexity (no native CLI — use Grok CLI as client)
+quay import cookies.json   # EditThisCookie export from perplexity.ai
+quay pool-add all && quay start
+quay apply-grok            # registers quay-pplx-* into ~/.grok/config.toml
+# in grok: /model quay-pplx-pro
 ```
 
 ### Routing theo model
@@ -89,9 +95,12 @@ eval "$(quay env)"
 | Model | Provider pool |
 |-------|----------------|
 | `grok-4.5`, `grok-build` | Grok (OIDC từ `grok login`) → `api.x.ai` |
+| `pplx-*`, `sonar` | Perplexity (browser cookies) → web session SSE |
 | còn lại (gpt-*, o*) | Codex / ChatGPT session |
 
-Override: header `X-Quay-Provider: grok|codex`
+**Grok CLI slugs** (sau `quay apply-grok`): `quay-grok-build`, `quay-grok-45`, `quay-pplx-pro`, `quay-pplx-turbo`, `quay-pplx-sonar`, `quay-pplx-grok`, `quay-pplx-claude`, `quay-pplx-gemini`.
+
+Override: header `X-Quay-Provider: grok|codex|perplexity`
 
 ---
 

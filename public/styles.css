@@ -760,6 +760,12 @@ html[data-view='logs'] #view-logs {
   background: #f1f5f9;
 }
 
+.chip.pplx {
+  color: #0f766e;
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+
 .chip.pin {
   color: #b45309;
   border-color: #fcd34d;

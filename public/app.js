@@ -344,7 +344,8 @@ function render(s) {
   if (hint) {
     const c = s.poolCodex ?? '—';
     const g = s.poolGrok ?? '—';
-    hint.textContent = `codex ${c} · grok ${g}`;
+    const p = s.poolPerplexity ?? '—';
+    hint.textContent = `codex ${c} · grok ${g} · pplx ${p}`;
   }
   renderDashPool(s);
   syncFilterControls(s);
@@ -487,9 +488,9 @@ function renderAccounts(s) {
 
   list.innerHTML = filtered
     .map((a) => {
-      const prov = a.provider === 'grok' ? 'grok' : 'codex';
+      const prov = providerLabel(a.provider);
       const chips = [
-        `<span class="chip ${prov === 'grok' ? 'grok' : 'plan'}">${prov}</span>`,
+        `<span class="chip ${chipClass(prov)}">${escapeHtml(prov)}</span>`,
         a.inPool ? '<span class="chip ok">pool</span>' : '',
         a.pinned ? '<span class="chip pin">pin</span>' : '',
         a.planType != null && String(a.planType) !== prov
@@ -565,9 +566,24 @@ function clearAccountFilters() {
   }
 }
 
+function providerLabel(p) {
+  if (p === 'grok') return 'grok';
+  if (p === 'perplexity' || p === 'pplx') return 'perplexity';
+  return 'codex';
+}
+
+function chipClass(prov) {
+  if (prov === 'grok') return 'grok';
+  if (prov === 'perplexity') return 'pplx';
+  return 'plan';
+}
+
 function renderQuota(a) {
   if (a.provider === 'grok') {
     return renderGrokHint(a);
+  }
+  if (a.provider === 'perplexity' || a.provider === 'pplx') {
+    return renderPerplexityHint(a);
   }
   const errBanner = renderAccountError(a);
   const q = a.quota;
@@ -619,6 +635,12 @@ function shortError(raw) {
 function renderGrokHint(a) {
   const exp = a.expiresAt ? fmtResetAt(a.expiresAt) : '—';
   return `<div class="quota-empty">Grok login · hết hạn token ~ ${escapeHtml(exp)} · usage xem grok.com</div>`;
+}
+
+function renderPerplexityHint(a) {
+  const exp = a.expiresAt ? fmtResetAt(a.expiresAt) : '—';
+  const tier = a.planType ? String(a.planType) : 'session';
+  return `<div class="quota-empty">Perplexity cookies · ${escapeHtml(tier)} · session ~ ${escapeHtml(exp)} · model pplx-pro / pplx-turbo / …</div>`;
 }
 
 /**
@@ -810,10 +832,11 @@ function bindUi() {
   bindApply('btnApplyGrok', {
     title: 'Gắn Grok CLI',
     message:
-      'Ghi model Quay vào ~/.grok/config.toml? Grok CLI sẽ gọi qua pool Grok.',
+      'Ghi model Quay vào ~/.grok/config.toml?\n• Grok pool: quay-grok-build, quay-grok-45\n• Perplexity (không có CLI riêng): quay-pplx-pro, quay-pplx-turbo, …',
     path: '/api/apply-grok',
     body: { backup: true, setDefault: true },
-    okToast: 'Đã gắn Grok CLI — /model quay-grok-build hoặc quay-grok-45, rồi restart grok',
+    okToast:
+      'Đã gắn Grok CLI — /model quay-grok-* hoặc quay-pplx-* (Perplexity), rồi restart grok',
   });
 
   $('btnPoolAll').onclick = async () => {
@@ -1019,7 +1042,7 @@ async function loadLogs() {
         const errTip = e.error ? ` title="${escapeHtml(e.error)}"` : '';
         return `<tr${errTip}>
           <td class="mono">${escapeHtml(t)}</td>
-          <td><span class="chip ${e.provider === 'grok' ? 'grok' : 'plan'}">${escapeHtml(e.provider || '—')}</span></td>
+          <td><span class="chip ${chipClass(providerLabel(e.provider))}">${escapeHtml(e.provider || '—')}</span></td>
           <td title="${escapeHtml(e.accountId || '')}">${escapeHtml(e.email || '—')}</td>
           <td class="mono">${escapeHtml(e.model || '—')}</td>
           <td class="mono">${escapeHtml(e.path || '')}${e.stream ? ' · stream' : ''}</td>

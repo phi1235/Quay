@@ -24,8 +24,14 @@ import {
   inferProvider,
   resolveGrokModel,
 } from './upstream-grok.js';
+import {
+  upstreamPerplexityChat,
+  perplexityBodyToChatCompletions,
+  resolvePerplexityModel,
+} from './upstream-perplexity.js';
 import { pushRequestLog } from './request-log.js';
 import { mountAdminApi } from './api.js';
+import { normalizeProvider } from './store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
@@ -156,7 +162,7 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
   const provider = opts.provider || inferProvider(body.model, req);
   const exclude = new Set();
   const providerPool = listPoolAccounts().filter(
-    (a) => (a.provider || 'codex') === provider,
+    (a) => normalizeProvider(a.provider) === provider,
   );
   const poolSize = Math.max(1, providerPool.length);
   let lastStatus = 502;
@@ -179,13 +185,17 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
 
     exclude.add(account.id);
     const t0 = Date.now();
-    const accProvider = account.provider === 'grok' ? 'grok' : 'codex';
+    const accProvider = normalizeProvider(account.provider);
     const logBase = {
       provider: accProvider,
       accountId: account.id,
       email: account.email,
       model:
-        accProvider === 'grok' ? resolveGrokModel(reqModel) : reqModel || null,
+        accProvider === 'grok'
+          ? resolveGrokModel(reqModel)
+          : accProvider === 'perplexity'
+            ? resolvePerplexityModel(reqModel)
+            : reqModel || null,
       path: upstreamPath,
       stream,
     };
@@ -217,6 +227,31 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
               `[gateway] grok account=${account.email} ${msg} → retry once`,
             );
             upstream = await upstreamGrokChat(account, chatBody, {
+              stream: Boolean(chatBody.stream),
+            });
+          } else {
+            throw netErr;
+          }
+        }
+        upstreamKind = 'chat';
+      } else if (accProvider === 'perplexity') {
+        // Perplexity web session (cookies) → OpenAI chat.completions shape
+        const chatBody =
+          opts.asChatCompletions || upstreamPath.includes('chat')
+            ? { ...body, stream }
+            : perplexityBodyToChatCompletions({ ...mapBody(body), stream });
+        if (opts.forceNoStream) chatBody.stream = false;
+        try {
+          upstream = await upstreamPerplexityChat(account, chatBody, {
+            stream: Boolean(chatBody.stream),
+          });
+        } catch (netErr) {
+          const msg = netErr instanceof Error ? netErr.message : String(netErr);
+          if (/fetch failed|ECONNRESET|ETIMEDOUT|network/i.test(msg) && attempt === 0) {
+            console.warn(
+              `[gateway] perplexity account=${account.email} ${msg} → retry once`,
+            );
+            upstream = await upstreamPerplexityChat(account, chatBody, {
               stream: Boolean(chatBody.stream),
             });
           } else {
@@ -307,9 +342,9 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
         return;
       }
 
-      // non-stream /v1/responses client hitting Grok → reshape to responses
+      // non-stream /v1/responses client hitting Grok/Perplexity → reshape to responses
       if (
-        accProvider === 'grok' &&
+        (accProvider === 'grok' || accProvider === 'perplexity') &&
         !stream &&
         !opts.asChatCompletions &&
         upstreamPath.includes('responses')
@@ -348,7 +383,7 @@ async function proxyWithFailover(req, res, upstreamPath, mapBody, opts = {}) {
           ok: true,
         });
         console.log(
-          `[gateway] ok grok account=${account.email} responses ${Date.now() - t0}ms`,
+          `[gateway] ok ${accProvider} account=${account.email} responses ${Date.now() - t0}ms`,
         );
         return;
       }
