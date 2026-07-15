@@ -322,7 +322,12 @@ function cmdApplyGrok(argv) {
   console.log(JSON.stringify(result, null, 2));
   console.log('\nStart gateway if not running: node src/cli.js start');
   console.log('Then run: grok');
-  console.log('Models in picker: Quay · Grok Build / Quay · Grok 4.5');
+  console.log('Models:');
+  console.log('  Grok pool:        quay-grok-build | quay-grok-45');
+  console.log(
+    '  Perplexity pool:  quay-pplx-pro | quay-pplx-turbo | quay-pplx-sonar | quay-pplx-grok | …',
+  );
+  console.log('(Perplexity không có CLI riêng — dùng Grok CLI làm client.)');
 }
 
 main().catch((err) => {

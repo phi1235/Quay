@@ -26,6 +26,13 @@ const MODEL_ALIASES = {
   'pplx_pro': 'pplx_pro',
   'turbo': 'turbo',
   'pplx-turbo': 'turbo',
+  // Grok CLI slugs (apply-grok → model field is already pplx-*, but slug may leak)
+  'quay-pplx-pro': 'pplx_pro',
+  'quay-pplx-turbo': 'turbo',
+  'quay-pplx-sonar': 'turbo',
+  'quay-pplx-grok': 'grok',
+  'quay-pplx-claude': 'claude45sonnet',
+  'quay-pplx-gemini': 'gemini2flash',
   // sonar
   'sonar': 'turbo',
   'sonar-2': 'turbo',
@@ -49,9 +56,16 @@ const MODEL_ALIASES = {
  * @param {string | undefined} model
  */
 export function resolvePerplexityModel(model) {
-  const m = String(model || 'pplx-pro').trim();
+  let m = String(model || 'pplx-pro').trim();
+  // strip quay- prefix if CLI ever sends the slug as model id
+  if (m.toLowerCase().startsWith('quay-')) m = m.slice(5);
   const key = m.toLowerCase();
-  return MODEL_ALIASES[key] || MODEL_ALIASES[m] || (key.startsWith('pplx') ? 'turbo' : m);
+  return (
+    MODEL_ALIASES[key] ||
+    MODEL_ALIASES[m] ||
+    MODEL_ALIASES[`quay-${key}`] ||
+    (key.startsWith('pplx') ? 'turbo' : m)
+  );
 }
 
 /**

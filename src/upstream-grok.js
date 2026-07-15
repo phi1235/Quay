@@ -280,9 +280,11 @@ export function inferProvider(model, req) {
   if (h === 'codex' || h === 'openai' || h === 'chatgpt') return 'codex';
 
   const m = String(model || '').toLowerCase();
+  // Grok CLI slugs for Perplexity (quay-pplx-*) — must check before quay-grok
   if (
     m.startsWith('pplx') ||
     m.startsWith('perplexity') ||
+    m.startsWith('quay-pplx') ||
     m === 'sonar' ||
     m.startsWith('sonar-')
   ) {

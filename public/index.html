@@ -294,17 +294,22 @@
                 <div class="provider-mark is-grok" aria-hidden="true">G</div>
                 <div class="provider-meta">
                   <div class="provider-name">Grok CLI</div>
-                  <div class="provider-path mono">~/.grok/config.toml</div>
+                  <div class="provider-path mono">~/.grok/config.toml · client chung</div>
                 </div>
                 <div class="provider-tags">
                   <span class="chip grok">pool grok</span>
+                  <span class="chip pplx">pool pplx</span>
                 </div>
-                <button type="button" class="btn primary sm" id="btnApplyGrok" data-tip="Ghi model Quay vào Grok CLI">
+                <button type="button" class="btn primary sm" id="btnApplyGrok" data-tip="Ghi model Quay (Grok + Perplexity) vào Grok CLI">
                   Áp dụng
                 </button>
               </article>
-              <!-- Provider mới: thêm 1 .provider-row -->
+              <!-- Perplexity không có CLI riêng — models quay-pplx-* nằm trong Grok CLI -->
             </div>
+            <p class="hint wide" style="margin-top:12px">
+              Perplexity không có CLI: import cookie → pool → <b>Áp dụng Grok CLI</b> →
+              trong <code>grok</code> chọn <code>/model quay-pplx-pro</code> (hoặc turbo / sonar / …).
+            </p>
           </div>
 
           <div class="card-block">

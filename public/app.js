@@ -832,10 +832,11 @@ function bindUi() {
   bindApply('btnApplyGrok', {
     title: 'Gắn Grok CLI',
     message:
-      'Ghi model Quay vào ~/.grok/config.toml? Grok CLI sẽ gọi qua pool Grok.',
+      'Ghi model Quay vào ~/.grok/config.toml?\n• Grok pool: quay-grok-build, quay-grok-45\n• Perplexity (không có CLI riêng): quay-pplx-pro, quay-pplx-turbo, …',
     path: '/api/apply-grok',
     body: { backup: true, setDefault: true },
-    okToast: 'Đã gắn Grok CLI — /model quay-grok-build hoặc quay-grok-45, rồi restart grok',
+    okToast:
+      'Đã gắn Grok CLI — /model quay-grok-* hoặc quay-pplx-* (Perplexity), rồi restart grok',
   });
 
   $('btnPoolAll').onclick = async () => {
