@@ -311,6 +311,9 @@ function cmdApplyCodex(argv) {
   console.log(JSON.stringify(result, null, 2));
   console.log('\nStart gateway if not running: node src/cli.js start');
   console.log('Then run: codex');
+  console.log('Models:');
+  console.log('  Pro/Edu (Codex agent):  gpt-5.4 | gpt-5.5 | gpt-5.3-codex | …');
+  console.log('  Free (ChatGPT web):     codex -m chatgpt-web | chatgpt-web-mini');
 }
 
 function cmdApplyGrok(argv) {
@@ -327,7 +330,10 @@ function cmdApplyGrok(argv) {
   console.log(
     '  Perplexity: quay-pplx-pro | sonar | terra | gemini | claude | glm | kimi | grok | nemotron',
   );
-  console.log('(Perplexity không có CLI riêng — dùng Grok CLI làm client.)');
+  console.log(
+    '  ChatGPT web (free OK): quay-chatgpt | quay-chatgpt-mini | quay-chatgpt-53',
+  );
+  console.log('(PPLX / ChatGPT web: dùng Grok CLI — /model quay-chatgpt)');
 }
 
 main().catch((err) => {

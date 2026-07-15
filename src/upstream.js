@@ -149,7 +149,7 @@ export function responsesToChatCompletion(respJson, model) {
 }
 
 export function defaultModels() {
-  // Codex / ChatGPT session models + Grok (xAI OIDC) + Perplexity (cookie session)
+  // Codex agent + ChatGPT web chat + Grok + Perplexity
   const codex = [
     'gpt-5.6-sol',
     'gpt-5.5',
@@ -160,6 +160,14 @@ export function defaultModels() {
     'o4-mini',
     'o3',
   ].map((id) => ({ id, object: 'model', created: 0, owned_by: 'codex' }));
+
+  // Browser chat path (free plan OK) — same JWT pool as codex
+  const chatgptWeb = [
+    'chatgpt-web',
+    'chatgpt-web-mini',
+    'chatgpt-web-5.3',
+    'chatgpt-web-5.5',
+  ].map((id) => ({ id, object: 'model', created: 0, owned_by: 'chatgpt-web' }));
 
   // Grok CLI surface: 4.5 (chat) + grok-build (coding default)
   const grok = ['grok-4.5', 'grok-build'].map((id) => ({
@@ -185,7 +193,7 @@ export function defaultModels() {
 
   return {
     object: 'list',
-    data: [...codex, ...grok, ...pplx],
+    data: [...codex, ...chatgptWeb, ...grok, ...pplx],
   };
 }
 

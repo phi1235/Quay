@@ -70,11 +70,13 @@ Open: `http://127.0.0.1:43690/`
 ### CLI
 
 ```bash
-# Codex
+# Codex CLI
 quay import file.json
 quay pool-add all
 quay start
 quay apply-codex
+# Pro/Edu: codex  (default gpt-* → Codex agent)
+# Free:    codex -m chatgpt-web
 
 # Grok
 quay import-grok   # or UI + Grok
@@ -96,7 +98,35 @@ quay apply-grok            # registers quay-pplx-* into ~/.grok/config.toml
 |-------|----------------|
 | `grok-4.5`, `grok-build` | Grok (OIDC từ `grok login`) → `api.x.ai` |
 | `pplx-*`, `sonar` | Perplexity (browser cookies) → web session SSE |
-| còn lại (gpt-*, o*) | Codex / ChatGPT session |
+| `chatgpt-web*`, `quay-chatgpt*` | ChatGPT **browser** chat (`/backend-api/conversation`) — **free OK** |
+| còn lại (gpt-*, o*, codex) | Codex agent backend (Plus+; free often 401) |
+
+**Codex CLI — ChatGPT web** (sau `quay apply-codex`; free token works):
+
+| Model | Web slug |
+|-------|----------|
+| `chatgpt-web` | `auto` |
+| `chatgpt-web-mini` | `gpt-5-mini` |
+| `chatgpt-web-5.3` | `gpt-5-3` |
+
+```bash
+quay apply-codex
+codex -m chatgpt-web          # free
+codex                         # Pro/Edu default (gpt-*)
+```
+
+**Grok CLI — ChatGPT web** (optional; same Quay routes):
+
+| Slug | Web model |
+|------|-----------|
+| `quay-chatgpt` | `auto` |
+| `quay-chatgpt-mini` | `gpt-5-mini` |
+| `quay-chatgpt-53` | `gpt-5-3` |
+
+```bash
+quay apply-grok
+# in grok: /model quay-chatgpt
+```
 
 **Grok CLI slugs** (sau `quay apply-grok`), Perplexity Pro unlocked:
 
